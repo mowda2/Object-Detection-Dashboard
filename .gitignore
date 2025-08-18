@@ -42,3 +42,4 @@ out/
 # Tests
 coverage/
 .pytest_cache/
+src/image_pipeline/
