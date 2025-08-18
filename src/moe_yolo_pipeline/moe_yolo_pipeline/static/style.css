@@ -1,0 +1,22 @@
+:root { color-scheme: dark; }
+body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif; background:#0b0d10; color:#e9eef1;}
+.container { max-width: 1200px; margin: 18px auto; padding:0 16px; }
+h1 { margin: 0 0 14px 0; }
+h2 { margin: 0 0 10px 0; }
+.card { background:#12161a; padding:14px; border-radius:12px; margin-bottom:14px; box-shadow:0 2px 6px rgba(0,0,0,.25); border:1px solid #1c2229; }
+.row { display:flex; gap:10px; align-items:center; margin:8px 0; flex-wrap:wrap; }
+.controls { display:flex; gap:10px; align-items:center; }
+.btn { background:#2a2f36; color:white; border:none; padding:8px 12px; border-radius:8px; cursor:pointer; }
+.btn:hover { background:#363c45; }
+.btn.primary { background:#4f8cff; }
+.btn.primary:hover { background:#3d76df; }
+.btn.danger { background:#de4f4f; }
+.btn.danger:hover { background:#c64646; }
+.pill { background:#1b2026; border:1px solid #2b3139; border-radius:24px; padding:6px 10px; cursor:pointer; margin:6px 6px 0 0; }
+.pill:hover { background:#252b33; }
+.muted { color:#92a0ad; }
+.status { color:#a6e3a1; font-family:monospace; }
+ul { margin:0; padding-left:18px; }
+a { color:#86c5ff; text-decoration:none; }
+a:hover { text-decoration:underline; }
+input { background:#0b0f14; border:1px solid #2b3139; color:#e9eef1; border-radius:8px; padding:6px 10px; }

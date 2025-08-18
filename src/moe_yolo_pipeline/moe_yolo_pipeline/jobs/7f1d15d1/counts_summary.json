@@ -1,0 +1,21 @@
+{
+  "total": 21,
+  "by_class": {
+    "person": 17,
+    "bicycle": 4
+  },
+  "by_direction": {
+    "A->B": 7,
+    "B->A": 14
+  },
+  "by_class_dir": {
+    "person": {
+      "A->B": 5,
+      "B->A": 12
+    },
+    "bicycle": {
+      "A->B": 2,
+      "B->A": 2
+    }
+  }
+}

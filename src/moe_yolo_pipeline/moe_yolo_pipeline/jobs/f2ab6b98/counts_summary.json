@@ -1,0 +1,9 @@
+{
+  "total": 68,
+  "by_class": {
+    "person": 56,
+    "bicycle": 10,
+    "backpack": 1,
+    "fire hydrant": 1
+  }
+}

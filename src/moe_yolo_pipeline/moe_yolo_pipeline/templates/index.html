@@ -1,0 +1,223 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>YOLO Control Panel</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    .header {display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+    .nav a{margin-right:10px}
+    .badges{display:flex;gap:10px;align-items:center}
+    .badge{background:#1e2630;border:1px solid #2c3642;border-radius:999px;padding:4px 10px;font-size:12px}
+    .switch{display:inline-flex;gap:6px;align-items:center;font-size:13px}
+    .switch input{transform:scale(1.1)}
+    .thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+    .thumb{background:#101419;border-radius:10px;padding:8px}
+    .thumb h4{margin:0 0 6px 0;font-size:12px;color:#9fb3c8}
+    .thumb img{width:100%;border-radius:8px;background:#000}
+    .logbox{background:#0b0f14;border:1px solid #1e2630;border-radius:10px;padding:10px;font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;height:220px;overflow:auto;white-space:pre-wrap}
+    .muted-small{color:#8ea1b3;font-size:12px}
+    .row-tight{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .pill.sel{background:#2a3442;border-color:#40516a}
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <h1 style="margin:0">YOLO Control Panel</h1>
+    <div class="nav">
+      <a class="btn" href="/grid">Detection Multi-View</a>
+      <a class="btn" href="/grid_raw">Raw Camera Multi-View</a>
+      <a class="btn" href="/analyze">Offline Analysis</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row-tight" style="justify-content:space-between;">
+      <div class="badges">
+        <span class="badge" id="badge-cams">Cameras: 0</span>
+        <span class="badge" id="badge-topics">Overlay topics: 0</span>
+        <span class="badge" id="badge-launch">Launch: stopped</span>
+      </div>
+      <div class="muted-small" id="badge-health">CPU/Mem: —</div>
+    </div>
+  </div>
+
+  <section class="card">
+    <h2>Camera Discovery</h2>
+    <div id="cam-list" class="row"></div>
+    <div class="row-tight">
+      <button id="btn-refresh" class="btn">Refresh Cameras</button>
+      <label class="switch"><input id="auto-refresh" type="checkbox"> auto-refresh</label>
+      <span class="muted-small" id="last-cam-scan"></span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Launch Manager</h2>
+    <div class="row">
+      <label>Selected indices (optional):</label>
+      <input id="indices" type="text" placeholder="leave empty for auto">
+      <button id="btn-start" class="btn primary">Start</button>
+      <button id="btn-stop" class="btn danger">Stop</button>
+      <span id="status" class="status"></span>
+    </div>
+    <div class="muted">Tip: leave indices empty to auto-detect all openable cameras.</div>
+  </section>
+
+  <section class="card">
+    <div class="row-tight" style="justify-content:space-between;">
+      <h2 style="margin:0">Available YOLO overlay topics</h2>
+      <div class="row-tight">
+        <label>Thumb width:</label><input id="tw" value="320" style="width:70px">
+        <label>FPS:</label><input id="tfps" value="2" style="width:60px">
+        <label>JPEG Q:</label><input id="tq" value="70" style="width:60px">
+        <button class="btn" onclick="renderThumbs()">Apply</button>
+      </div>
+    </div>
+    <div id="thumbs" class="thumbs"></div>
+  </section>
+
+  <section class="card">
+    <div class="row-tight" style="justify-content:space-between;">
+      <h2 style="margin:0">Launch Logs</h2>
+      <div class="row-tight">
+        <button class="btn" onclick="loadLogs()">Refresh</button>
+        <label class="switch"><input id="auto-logs" type="checkbox" checked> auto</label>
+      </div>
+    </div>
+    <div id="logs" class="logbox">—</div>
+  </section>
+
+</div>
+
+<script>
+async function fetchJSON(url, opts) {
+  const r = await fetch(url, opts || {});
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+/* ---------- Cameras ---------- */
+async function refreshCams() {
+  const data = await fetchJSON('/api/cameras');
+  const wrap = document.getElementById('cam-list');
+  wrap.innerHTML = '';
+  if (!data.present.length) {
+    wrap.innerHTML = '<div class="muted">No openable cameras found.</div>';
+  } else {
+    data.present.forEach(i => {
+      const div = document.createElement('div');
+      div.className = 'pill';
+      div.textContent = '/dev/video' + i;
+      div.onclick = () => toggleIndex(i, div);
+      wrap.appendChild(div);
+    });
+  }
+  document.getElementById('last-cam-scan').textContent = 'Last scan: ' + new Date().toLocaleTimeString();
+}
+function toggleIndex(i, el) {
+  const input = document.getElementById('indices');
+  const cur = input.value.split(',').map(s => s.trim()).filter(Boolean);
+  const s = String(i);
+  const pos = cur.indexOf(s);
+  if (pos >= 0) { cur.splice(pos, 1); el.classList.remove('sel'); }
+  else { cur.push(s); el.classList.add('sel'); }
+  input.value = cur.join(',');
+}
+
+/* ---------- Topics & thumbnails ---------- */
+let cachedTopics = [];
+async function refreshTopics() {
+  const data = await fetchJSON('/api/topics');
+  cachedTopics = data.topics || [];
+  document.getElementById('badge-topics').textContent = 'Overlay topics: ' + cachedTopics.length;
+  renderThumbs();
+}
+function renderThumbs() {
+  const w = +document.getElementById('tw').value || 320;
+  const fps = +document.getElementById('tfps').value || 2;
+  const q = +document.getElementById('tq').value || 70;
+  const grid = document.getElementById('thumbs');
+  grid.innerHTML = '';
+  cachedTopics.forEach(t => {
+    const card = document.createElement('div');
+    card.className = 'thumb';
+    const h = document.createElement('h4');
+    h.textContent = t;
+    const img = document.createElement('img');
+    img.src = `/stream?topic=${encodeURIComponent(t)}&w=${w}&fps=${fps}&q=${q}`;
+    img.addEventListener('error', () => setTimeout(()=>{
+      img.src = `/stream?topic=${encodeURIComponent(t)}&w=${w}&fps=${fps}&q=${q}&_=${Date.now()}`
+    }, 800));
+    card.appendChild(h);
+    card.appendChild(img);
+    grid.appendChild(card);
+  });
+}
+
+/* ---------- Launch ---------- */
+async function startLaunch() {
+  const idx = document.getElementById('indices').value;
+  const body = new URLSearchParams({indices: idx});
+  try {
+    const r = await fetchJSON('/api/start', {method: 'POST', body});
+    document.getElementById('status').textContent = 'Running: ' + JSON.stringify(r.status);
+    await refreshAll();
+  } catch (e) { alert(e); }
+}
+async function stopLaunch() {
+  await fetchJSON('/api/stop', {method: 'POST'});
+  document.getElementById('status').textContent = 'Stopped';
+  await refreshAll();
+}
+
+/* ---------- Logs ---------- */
+async function loadLogs() {
+  const r = await fetchJSON('/api/logs?n=300');
+  const box = document.getElementById('logs');
+  box.textContent = (r.lines || []).join('\n') || '—';
+  box.scrollTop = box.scrollHeight;
+}
+
+/* ---------- Status / Health ---------- */
+async function refreshStatusBar() {
+  const s = await fetchJSON('/api/status');
+  document.getElementById('badge-cams').textContent = 'Cameras: ' + s.num_cameras;
+  document.getElementById('badge-topics').textContent = 'Overlay topics: ' + s.num_topics;
+  document.getElementById('badge-launch').textContent = 'Launch: ' + (s.launch.running ? 'running' : 'stopped');
+}
+async function refreshHealth() {
+  try {
+    const h = await fetchJSON('/api/health');
+    document.getElementById('badge-health').textContent = `CPU load(1m): ${h.load1.toFixed(2)} · Mem used: ${h.mem_used_pct}%`;
+  } catch {}
+}
+
+/* ---------- Orchestration ---------- */
+async function refreshAll() {
+  await Promise.all([refreshCams(), refreshTopics(), refreshStatusBar(), refreshHealth(), loadLogs()]);
+}
+
+document.getElementById('btn-refresh').onclick = refreshCams;
+document.getElementById('btn-start').onclick = startLaunch;
+document.getElementById('btn-stop').onclick = stopLaunch;
+
+let camTimer = null, logTimer = null;
+document.getElementById('auto-refresh').addEventListener('change', (e)=>{
+  if (e.target.checked) camTimer = setInterval(refreshCams, 10000);
+  else { clearInterval(camTimer); camTimer = null; }
+});
+document.getElementById('auto-logs').addEventListener('change', (e)=>{
+  if (e.target.checked) logTimer = setInterval(loadLogs, 2000);
+  else { clearInterval(logTimer); logTimer = null; }
+});
+
+refreshAll();
+camTimer = setInterval(refreshCams, 10000);
+logTimer = setInterval(loadLogs, 2000);
+setInterval(()=>{ refreshStatusBar(); refreshTopics(); refreshHealth(); }, 5000);
+</script>
+</body>
+</html>
