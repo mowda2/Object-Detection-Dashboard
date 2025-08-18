@@ -1,0 +1,44 @@
+# ROS2 workspace junk
+build/
+install/
+log/
+.colcon_ignore
+.colcon_release
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.env.*
+
+# Editors/OS
+.DS_Store
+.vscode/
+.idea/
+
+# Data & outputs (don’t version these)
+videos/
+datasets/
+results/
+runs/
+uploads/
+media/
+tmp/
+cache/
+*.log
+*.bag
+
+# Node/JS (if any subprojects)
+node_modules/
+dist/
+build/
+.next/
+out/
+
+# Tests
+coverage/
+.pytest_cache/
+src/image_pipeline/
