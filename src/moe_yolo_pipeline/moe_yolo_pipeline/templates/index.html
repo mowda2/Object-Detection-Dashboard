@@ -24,15 +24,19 @@
 <body>
 <div class="container">
 
+  <!-- shared header + nav -->
   <div class="header">
     <h1 style="margin:0">YOLO Control Panel</h1>
     <div class="nav">
       <a class="btn" href="/grid">Detection Multi-View</a>
       <a class="btn" href="/grid_raw">Raw Camera Multi-View</a>
-      <a class="btn" href="/analyze">Offline Analysis</a>
+      <a class="btn" href="/analyze">Sample Analysis</a>
+      <a class="btn" href="/offline">Offline Analysis</a>
     </div>
   </div>
 
+  <!-- page-specific content goes here -->
+  {% block content %}
   <div class="card">
     <div class="row-tight" style="justify-content:space-between;">
       <div class="badges">
@@ -90,134 +94,134 @@
     <div id="logs" class="logbox">—</div>
   </section>
 
-</div>
+  <script>
+  async function fetchJSON(url, opts) {
+    const r = await fetch(url, opts || {});
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
+  }
 
-<script>
-async function fetchJSON(url, opts) {
-  const r = await fetch(url, opts || {});
-  if (!r.ok) throw new Error(await r.text());
-  return r.json();
-}
+  /* ---------- Cameras ---------- */
+  async function refreshCams() {
+    const data = await fetchJSON('/api/cameras');
+    const wrap = document.getElementById('cam-list');
+    wrap.innerHTML = '';
+    if (!data.present.length) {
+      wrap.innerHTML = '<div class="muted">No openable cameras found.</div>';
+    } else {
+      data.present.forEach(i => {
+        const div = document.createElement('div');
+        div.className = 'pill';
+        div.textContent = '/dev/video' + i;
+        div.onclick = () => toggleIndex(i, div);
+        wrap.appendChild(div);
+      });
+    }
+    document.getElementById('last-cam-scan').textContent = 'Last scan: ' + new Date().toLocaleTimeString();
+  }
+  function toggleIndex(i, el) {
+    const input = document.getElementById('indices');
+    const cur = input.value.split(',').map(s => s.trim()).filter(Boolean);
+    const s = String(i);
+    const pos = cur.indexOf(s);
+    if (pos >= 0) { cur.splice(pos, 1); el.classList.remove('sel'); }
+    else { cur.push(s); el.classList.add('sel'); }
+    input.value = cur.join(',');
+  }
 
-/* ---------- Cameras ---------- */
-async function refreshCams() {
-  const data = await fetchJSON('/api/cameras');
-  const wrap = document.getElementById('cam-list');
-  wrap.innerHTML = '';
-  if (!data.present.length) {
-    wrap.innerHTML = '<div class="muted">No openable cameras found.</div>';
-  } else {
-    data.present.forEach(i => {
-      const div = document.createElement('div');
-      div.className = 'pill';
-      div.textContent = '/dev/video' + i;
-      div.onclick = () => toggleIndex(i, div);
-      wrap.appendChild(div);
+  /* ---------- Topics & thumbnails ---------- */
+  let cachedTopics = [];
+  async function refreshTopics() {
+    const data = await fetchJSON('/api/topics');
+    cachedTopics = data.topics || [];
+    document.getElementById('badge-topics').textContent = 'Overlay topics: ' + cachedTopics.length;
+    renderThumbs();
+  }
+  function renderThumbs() {
+    const w = +document.getElementById('tw').value || 320;
+    const fps = +document.getElementById('tfps').value || 2;
+    const q = +document.getElementById('tq').value || 70;
+    const grid = document.getElementById('thumbs');
+    grid.innerHTML = '';
+    cachedTopics.forEach(t => {
+      const card = document.createElement('div');
+      card.className = 'thumb';
+      const h = document.createElement('h4');
+      h.textContent = t;
+      const img = document.createElement('img');
+      img.src = `/stream?topic=${encodeURIComponent(t)}&w=${w}&fps=${fps}&q=${q}`;
+      img.addEventListener('error', () => setTimeout(()=>{
+        img.src = `/stream?topic=${encodeURIComponent(t)}&w=${w}&fps=${fps}&q=${q}&_=${Date.now()}`
+      }, 800));
+      card.appendChild(h);
+      card.appendChild(img);
+      grid.appendChild(card);
     });
   }
-  document.getElementById('last-cam-scan').textContent = 'Last scan: ' + new Date().toLocaleTimeString();
-}
-function toggleIndex(i, el) {
-  const input = document.getElementById('indices');
-  const cur = input.value.split(',').map(s => s.trim()).filter(Boolean);
-  const s = String(i);
-  const pos = cur.indexOf(s);
-  if (pos >= 0) { cur.splice(pos, 1); el.classList.remove('sel'); }
-  else { cur.push(s); el.classList.add('sel'); }
-  input.value = cur.join(',');
-}
 
-/* ---------- Topics & thumbnails ---------- */
-let cachedTopics = [];
-async function refreshTopics() {
-  const data = await fetchJSON('/api/topics');
-  cachedTopics = data.topics || [];
-  document.getElementById('badge-topics').textContent = 'Overlay topics: ' + cachedTopics.length;
-  renderThumbs();
-}
-function renderThumbs() {
-  const w = +document.getElementById('tw').value || 320;
-  const fps = +document.getElementById('tfps').value || 2;
-  const q = +document.getElementById('tq').value || 70;
-  const grid = document.getElementById('thumbs');
-  grid.innerHTML = '';
-  cachedTopics.forEach(t => {
-    const card = document.createElement('div');
-    card.className = 'thumb';
-    const h = document.createElement('h4');
-    h.textContent = t;
-    const img = document.createElement('img');
-    img.src = `/stream?topic=${encodeURIComponent(t)}&w=${w}&fps=${fps}&q=${q}`;
-    img.addEventListener('error', () => setTimeout(()=>{
-      img.src = `/stream?topic=${encodeURIComponent(t)}&w=${w}&fps=${fps}&q=${q}&_=${Date.now()}`
-    }, 800));
-    card.appendChild(h);
-    card.appendChild(img);
-    grid.appendChild(card);
-  });
-}
-
-/* ---------- Launch ---------- */
-async function startLaunch() {
-  const idx = document.getElementById('indices').value;
-  const body = new URLSearchParams({indices: idx});
-  try {
-    const r = await fetchJSON('/api/start', {method: 'POST', body});
-    document.getElementById('status').textContent = 'Running: ' + JSON.stringify(r.status);
+  /* ---------- Launch ---------- */
+  async function startLaunch() {
+    const idx = document.getElementById('indices').value;
+    const body = new URLSearchParams({indices: idx});
+    try {
+      const r = await fetchJSON('/api/start', {method: 'POST', body});
+      document.getElementById('status').textContent = 'Running: ' + JSON.stringify(r.status);
+      await refreshAll();
+    } catch (e) { alert(e); }
+  }
+  async function stopLaunch() {
+    await fetchJSON('/api/stop', {method: 'POST'});
+    document.getElementById('status').textContent = 'Stopped';
     await refreshAll();
-  } catch (e) { alert(e); }
-}
-async function stopLaunch() {
-  await fetchJSON('/api/stop', {method: 'POST'});
-  document.getElementById('status').textContent = 'Stopped';
-  await refreshAll();
-}
+  }
 
-/* ---------- Logs ---------- */
-async function loadLogs() {
-  const r = await fetchJSON('/api/logs?n=300');
-  const box = document.getElementById('logs');
-  box.textContent = (r.lines || []).join('\n') || '—';
-  box.scrollTop = box.scrollHeight;
-}
+  /* ---------- Logs ---------- */
+  async function loadLogs() {
+    const r = await fetchJSON('/api/logs?n=300');
+    const box = document.getElementById('logs');
+    box.textContent = (r.lines || []).join('\n') || '—';
+    box.scrollTop = box.scrollHeight;
+  }
 
-/* ---------- Status / Health ---------- */
-async function refreshStatusBar() {
-  const s = await fetchJSON('/api/status');
-  document.getElementById('badge-cams').textContent = 'Cameras: ' + s.num_cameras;
-  document.getElementById('badge-topics').textContent = 'Overlay topics: ' + s.num_topics;
-  document.getElementById('badge-launch').textContent = 'Launch: ' + (s.launch.running ? 'running' : 'stopped');
-}
-async function refreshHealth() {
-  try {
-    const h = await fetchJSON('/api/health');
-    document.getElementById('badge-health').textContent = `CPU load(1m): ${h.load1.toFixed(2)} · Mem used: ${h.mem_used_pct}%`;
-  } catch {}
-}
+  /* ---------- Status / Health ---------- */
+  async function refreshStatusBar() {
+    const s = await fetchJSON('/api/status');
+    document.getElementById('badge-cams').textContent = 'Cameras: ' + s.num_cameras;
+    document.getElementById('badge-topics').textContent = 'Overlay topics: ' + s.num_topics;
+    document.getElementById('badge-launch').textContent = 'Launch: ' + (s.launch.running ? 'running' : 'stopped');
+  }
+  async function refreshHealth() {
+    try {
+      const h = await fetchJSON('/api/health');
+      document.getElementById('badge-health').textContent = `CPU load(1m): ${h.load1.toFixed(2)} · Mem used: ${h.mem_used_pct}%`;
+    } catch {}
+  }
 
-/* ---------- Orchestration ---------- */
-async function refreshAll() {
-  await Promise.all([refreshCams(), refreshTopics(), refreshStatusBar(), refreshHealth(), loadLogs()]);
-}
+  /* ---------- Orchestration ---------- */
+  async function refreshAll() {
+    await Promise.all([refreshCams(), refreshTopics(), refreshStatusBar(), refreshHealth(), loadLogs()]);
+  }
 
-document.getElementById('btn-refresh').onclick = refreshCams;
-document.getElementById('btn-start').onclick = startLaunch;
-document.getElementById('btn-stop').onclick = stopLaunch;
+  document.getElementById('btn-refresh').onclick = refreshCams;
+  document.getElementById('btn-start').onclick = startLaunch;
+  document.getElementById('btn-stop').onclick = stopLaunch;
 
-let camTimer = null, logTimer = null;
-document.getElementById('auto-refresh').addEventListener('change', (e)=>{
-  if (e.target.checked) camTimer = setInterval(refreshCams, 10000);
-  else { clearInterval(camTimer); camTimer = null; }
-});
-document.getElementById('auto-logs').addEventListener('change', (e)=>{
-  if (e.target.checked) logTimer = setInterval(loadLogs, 2000);
-  else { clearInterval(logTimer); logTimer = null; }
-});
+  let camTimer = null, logTimer = null;
+  document.getElementById('auto-refresh').addEventListener('change', (e)=>{
+    if (e.target.checked) camTimer = setInterval(refreshCams, 10000);
+    else { clearInterval(camTimer); camTimer = null; }
+  });
+  document.getElementById('auto-logs').addEventListener('change', (e)=>{
+    if (e.target.checked) logTimer = setInterval(loadLogs, 2000);
+    else { clearInterval(logTimer); logTimer = null; }
+  });
 
-refreshAll();
-camTimer = setInterval(refreshCams, 10000);
-logTimer = setInterval(loadLogs, 2000);
-setInterval(()=>{ refreshStatusBar(); refreshTopics(); refreshHealth(); }, 5000);
-</script>
+  refreshAll();
+  camTimer = setInterval(refreshCams, 10000);
+  logTimer = setInterval(loadLogs, 2000);
+  setInterval(()=>{ refreshStatusBar(); refreshTopics(); refreshHealth(); }, 5000);
+  </script>
+  {% endblock %}
+</div>
 </body>
 </html>

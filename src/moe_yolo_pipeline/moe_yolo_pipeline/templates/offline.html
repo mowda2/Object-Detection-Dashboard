@@ -1,0 +1,110 @@
+{% extends "index.html" %}
+{% block content %}
+  <section class="card">
+    <h2>Offline Analysis – Tracking + Speed</h2>
+
+    <form id="offline-form" class="card" method="post" enctype="multipart/form-data">
+      <label>Upload video / bag:
+        <input type="file" name="file" accept="video/*,.db3,.bag" required />
+      </label>
+
+      <div class="row">
+        <div>
+          <label>Model
+            <input type="text" name="model" value="yolo11n.pt"/>
+          </label>
+        </div>
+        <div>
+          <label>Confidence
+            <input type="number" step="0.01" min="0" max="1" name="conf" value="0.25"/>
+          </label>
+        </div>
+        <div>
+          <label>Meters / pixel
+            <input type="number" step="0.0001" name="meters_per_pixel" value="0.05"/>
+          </label>
+        </div>
+        <div>
+          <label>Device
+            <select name="device">
+              <option value="cuda">cuda</option>
+              <option value="cpu" selected>cpu</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <button type="submit" class="btn primary">Analyze</button>
+    </form>
+  </section>
+
+  <section id="status" class="card" style="display:none;">
+    <div>State: <span id="state">idle</span></div>
+    <div class="progress">
+      <div id="bar" class="bar" style="width:0%"></div>
+    </div>
+    <div class="muted-small" id="msg"></div>
+  </section>
+
+  <section id="results" class="card" style="display:none;">
+    <video id="video" controls playsinline class="video" style="width:100%;border-radius:8px;"></video>
+    <p class="row">
+      <a id="csv" href="#" class="btn">Download CSV</a>
+      <a id="json" href="#" class="btn">Download Summary</a>
+    </p>
+  </section>
+
+  <script>
+  const form = document.getElementById("offline-form");
+  const statusBox = document.getElementById("status");
+  const stateEl = document.getElementById("state");
+  const bar = document.getElementById("bar");
+  const msgEl = document.getElementById("msg");
+  const results = document.getElementById("results");
+  const videoEl = document.getElementById("video");
+  const csvEl = document.getElementById("csv");
+  const jsonEl = document.getElementById("json");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const data = new FormData(form);
+
+    // our backend accepts both "model" and "model_path"; send both for safety
+    if (!data.get("model_path")) data.append("model_path", data.get("model") || "yolo11n.pt");
+
+    const res = await fetch("/offline/analyze", { method: "POST", body: data });
+    const j = await res.json().catch(()=>({ok:false,error:"bad response"}));
+    if (!j || !j.ok) { alert((j && j.error) || "Upload failed"); return; }
+
+    statusBox.style.display = "";
+    stateEl.textContent = "running";
+    bar.style.width = "5%";
+    msgEl.textContent = "Starting…";
+
+    const jid = j.job_id;
+    const t = setInterval(async () => {
+      const r = await fetch(`/offline/status/${jid}`);
+      const s = await r.json().catch(()=>({ok:false}));
+      if (!s.ok) return;
+
+      stateEl.textContent = s.state;
+      const pct = Math.round((s.progress || 0) * 100);
+      bar.style.width = pct + "%";
+      if (s.error) msgEl.textContent = s.error;
+      if (s.message) msgEl.textContent = s.message;
+
+      if (s.state === "done") {
+        clearInterval(t);
+        results.style.display = "";
+        if (s.video_url) videoEl.src = s.video_url;
+        if (s.csv_url)  { csvEl.href  = s.csv_url;  }
+        if (s.json_url) { jsonEl.href = s.json_url; }
+      }
+      if (s.state === "error") {
+        clearInterval(t);
+        alert("Error: " + (s.error || "unknown"));
+      }
+    }, 1200);
+  });
+  </script>
+{% endblock %}

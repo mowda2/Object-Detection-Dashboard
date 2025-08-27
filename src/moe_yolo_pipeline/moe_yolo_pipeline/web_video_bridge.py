@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 import os, re, glob, time, signal, threading, subprocess, uuid, mimetypes, json
 from collections import defaultdict, deque
 from typing import Dict, Optional, List, Tuple, Any
@@ -9,17 +11,48 @@ from flask import (
     send_from_directory, send_file, abort
 )
 
-import rclpy
-from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
-from sensor_msgs.msg import Image
-from cv_bridge import CvBridge  # fixed stray backslash earlier
+# --- ROS 2 imports (optional on Mac) ---
+try:
+    import rclpy
+    from rclpy.node import Node
+    from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
+    from sensor_msgs.msg import Image
+    from cv_bridge import CvBridge  # fixed stray backslash earlier
+except ImportError:
+    # Stubs so the rest of the file can still load without ROS 2
+    print("⚠️ ROS 2 not available, running in offline-only mode")
+    rclpy = None
+    Node = None
+    QoSProfile = None
+    ReliabilityPolicy = None
+    HistoryPolicy = None
+    Image = None
+    CvBridge = None
+# ---------------------------------------
+ROS_AVAILABLE = rclpy is not None
 
 # try to enable rosbag reading when available
 try:
     import rosbag2_py
 except Exception:
     rosbag2_py = None
+
+# Import offline analysis blueprint (optional extra page at /offline)
+from .offline_routes import offline_bp
+
+# ------- Minimal adapter so code can call ROS.* safely on macOS -------
+class _FakeROS:
+    def ensure_subscribed(self, topic): 
+        pass
+    def read_latest(self, topic):
+        return None
+    def get_active_topics(self, pattern_strings, max_age=2.0, subscribe_missing=True):
+        return []
+    def get_overlay_topics(self):
+        return []
+    def shutdown(self):
+        pass
+# ---------------------------------------------------------------------
 
 # ---------- Flask app ----------
 HERE = os.path.dirname(__file__)
@@ -29,6 +62,8 @@ app = Flask(
     static_folder=os.path.join(HERE, "static"),
 )
 app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024 * 1024  # 2GB
+# register offline analysis routes
+app.register_blueprint(offline_bp)
 
 JOBS_DIR = os.path.join(HERE, "jobs")
 os.makedirs(JOBS_DIR, exist_ok=True)
@@ -68,6 +103,7 @@ def parse_indices_param(text: str) -> Optional[List[int]]:
     return out if out else None
 
 def bash_launch(cmd: str) -> subprocess.Popen:
+    # This is Linux/Jetson specific. We'll block callers on macOS via route guards.
     ros_src = "source /opt/ros/humble/setup.bash; source ~/MoeWS/install/setup.bash || true"
     full = f"{ros_src}; {cmd}"
     return subprocess.Popen(
@@ -90,107 +126,115 @@ def kill_pgroup(p: subprocess.Popen):
         pass
 
 # ---------- Background ROS node ----------
-class BridgeNode(Node):
-    def __init__(self):
-        super().__init__("web_video_bridge")
-        self.bridge = CvBridge()
-        self.lock = threading.Lock()
-        self.latest: Dict[str, Tuple[float, Optional[Any]]] = defaultdict(lambda: (0.0, None))
-        self.subs: Dict[str, Any] = {}
+if ROS_AVAILABLE:
+    class BridgeNode(Node):
+        def __init__(self):
+            super().__init__("web_video_bridge")
+            self.bridge = CvBridge()
+            self.lock = threading.Lock()
+            self.latest: Dict[str, Tuple[float, Optional[Any]]] = defaultdict(lambda: (0.0, None))
+            self.subs: Dict[str, Any] = {}
 
-        self.qos = QoSProfile(
-            reliability=ReliabilityPolicy.BEST_EFFORT,
-            history=HistoryPolicy.KEEP_LAST,
-            depth=1,
-        )
+            self.qos = QoSProfile(
+                reliability=ReliabilityPolicy.BEST_EFFORT,
+                history=HistoryPolicy.KEEP_LAST,
+                depth=1,
+            )
 
-        self.patterns = [
-            re.compile(r"^/cam\d+/yolo/image_overlay$"),
-            re.compile(r"^/yolo/image_overlay$"),
-        ]
-        self._stop = threading.Event()
-        self._rescan_period = 2.0
-        self._rescan_thread = threading.Thread(target=self._rescan_loop, daemon=True)
-        self._rescan_thread.start()
+            self.patterns = [
+                re.compile(r"^/cam\d+/yolo/image_overlay$"),
+                re.compile(r"^/yolo/image_overlay$"),
+            ]
+            self._stop = threading.Event()
+            self._rescan_period = 2.0
+            self._rescan_thread = threading.Thread(target=self._rescan_loop, daemon=True)
+            self._rescan_thread.start()
 
-        self.get_logger().info(
-            f"Patterns: {[p.pattern for p in self.patterns]}, "
-            f"rescan={self._rescan_period:.1f}s, jpeg_quality default=80, stream_fps default=10.0"
-        )
+            self.get_logger().info(
+                f"Patterns: {[p.pattern for p in self.patterns]}, "
+                f"rescan={self._rescan_period:.1f}s, jpeg_quality default=80, stream_fps default=10.0"
+            )
 
-    def _rescan_loop(self):
-        while not self._stop.is_set():
+        def _rescan_loop(self):
+            while not self._stop.is_set():
+                try:
+                    names = [n for (n, _t) in self.get_topic_names_and_types()]
+                    for name in names:
+                        if name in self.subs:
+                            continue
+                        if any(p.match(name) for p in self.patterns):
+                            self.ensure_subscribed(name)
+                except Exception as e:
+                    try:
+                        self.get_logger().warn(f"rescan error: {e}")
+                    except Exception:
+                        pass
+                time.sleep(self._rescan_period)
+
+        def ensure_subscribed(self, topic: str):
+            if topic in self.subs:
+                return
+            sub = self.create_subscription(Image, topic, lambda msg, t=topic: self._img_cb(t, msg), self.qos)
+            self.subs[topic] = sub
+
+        def _img_cb(self, topic: str, msg: Image):
             try:
-                names = [n for (n, _t) in self.get_topic_names_and_types()]
-                for name in names:
-                    if name in self.subs:
+                img = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+            except Exception:
+                img = None
+            with self.lock:
+                self.latest[topic] = (time.time(), img)
+
+        def read_latest(self, topic: str):
+            with self.lock:
+                return self.latest.get(topic, (0.0, None))[1]
+
+        def get_active_topics(self, pattern_strings, max_age: float = 2.0, subscribe_missing: bool = True):
+            patterns = [re.compile(p) for p in pattern_strings]
+            now = time.time()
+            results = []
+            try:
+                for (name, types) in self.get_topic_names_and_types():
+                    if "sensor_msgs/msg/Image" not in types:
                         continue
-                    if any(p.match(name) for p in self.patterns):
+                    if not any(p.match(name) for p in patterns):
+                        continue
+                    if subscribe_missing and name not in self.subs:
                         self.ensure_subscribed(name)
-            except Exception as e:
-                self.get_logger().warn(f"rescan error: {e}")
-            time.sleep(self._rescan_period)
+                    ts, _ = self.latest.get(name, (0.0, None))
+                    if now - ts <= max_age:
+                        results.append(name)
+            except Exception:
+                pass
+            return sorted(set(results))
 
-    def ensure_subscribed(self, topic: str):
-        if topic in self.subs:
-            return
-        self.get_logger().info(f"Subscribing {topic}")
-        sub = self.create_subscription(Image, topic, lambda msg, t=topic: self._img_cb(t, msg), self.qos)
-        self.subs[topic] = sub
+        def get_overlay_topics(self):
+            return self.get_active_topics(
+                [r"^/cam\d+/yolo/image_overlay$", r"^/yolo/image_overlay$"],
+                max_age=2.0,
+                subscribe_missing=True,
+            )
 
-    def _img_cb(self, topic: str, msg: Image):
-        try:
-            img = self.bridge.imgmsg_to_cv2(msg, "bgr8")
-        except Exception:
-            img = None
-        with self.lock:
-            self.latest[topic] = (time.time(), img)
-
-    def read_latest(self, topic: str):
-        with self.lock:
-            return self.latest.get(topic, (0.0, None))[1]
-
-    def get_active_topics(self, pattern_strings, max_age: float = 2.0, subscribe_missing: bool = True):
-        patterns = [re.compile(p) for p in pattern_strings]
-        now = time.time()
-        results = []
-        try:
-            for (name, types) in self.get_topic_names_and_types():
-                if "sensor_msgs/msg/Image" not in types:
-                    continue
-                if not any(p.match(name) for p in patterns):
-                    continue
-                if subscribe_missing and name not in self.subs:
-                    self.ensure_subscribed(name)
-                ts, _ = self.latest.get(name, (0.0, None))
-                if now - ts <= max_age:
-                    results.append(name)
-        except Exception:
-            pass
-        return sorted(set(results))
-
-    def get_overlay_topics(self):
-        return self.get_active_topics(
-            [r"^/cam\d+/yolo/image_overlay$", r"^/yolo/image_overlay$"],
-            max_age=2.0,
-            subscribe_missing=True,
-        )
-
-    def shutdown(self):
-        self._stop.set()
-        try:
-            self._rescan_thread.join(timeout=1.0)
-        except Exception:
-            pass
+        def shutdown(self):
+            self._stop.set()
+            try:
+                self._rescan_thread.join(timeout=1.0)
+            except Exception:
+                pass
+else:
+    BridgeNode = None
 
 def get_camera_topics(patterns, max_age: float = 2.0):
     return ROS.get_active_topics(patterns, max_age=max_age, subscribe_missing=True)
 
 # ROS bootstrap
-rclpy.init(args=None)
-ROS = BridgeNode()
-_spin_thread = threading.Thread(target=lambda: rclpy.spin(ROS), daemon=True)
-_spin_thread.start()
+if ROS_AVAILABLE:
+    rclpy.init(args=None)
+    ROS = BridgeNode()
+    _spin_thread = threading.Thread(target=lambda: rclpy.spin(ROS), daemon=True)
+    _spin_thread.start()
+else:
+    ROS = _FakeROS()
 
 # ---------- Process manager ----------
 class LaunchManager:
@@ -201,6 +245,7 @@ class LaunchManager:
         self._log_lock = threading.Lock()
 
     def start(self, indices: Optional[List[int]]):
+        # Only valid on ROS systems; routes guard this on macOS.
         self.stop()
         self.indices = indices
         cmd = "ros2 launch moe_yolo_pipeline multi_camera_yolo.launch.py"
@@ -281,13 +326,13 @@ def make_video_writer(out_dir: str, fps: float, size: Tuple[int, int]):
 def iou(boxA, boxB):
     xA = max(boxA[0], boxB[0])
     yA = max(boxA[1], boxB[1])
-    xB = min(boxA[2], boxB[2])
-    yB = min(boxA[3], boxB[3])
+    xB = min(boxA[2], boxB[0] if len(boxB) < 4 else boxB[2])
+    yB = min(boxA[3], boxB[1] if len(boxB) < 4 else boxB[3])
     inter = max(0, xB - xA) * max(0, yB - yA)
     if inter <= 0:
         return 0.0
     areaA = max(0, boxA[2] - boxA[0]) * max(0, boxA[3] - boxA[1])
-    areaB = max(0, boxB[2] - boxB[0]) * max(0, boxB[3] - boxB[1])
+    areaB = max(0, (boxB[2] - boxB[0])) * max(0, (boxB[3] - boxB[1]))
     denom = float(areaA + areaB - inter) or 1.0
     return inter / denom
 
@@ -809,7 +854,7 @@ def api_topics():
 def api_status():
     cams = detect_video_indices()
     topics = ROS.get_overlay_topics()
-    st = LAUNCH.status()
+    st = LAUNCH.status() if ROS_AVAILABLE else {"running": False}
     return jsonify({
         "launch": st,
         "cameras": cams,
@@ -845,6 +890,8 @@ def api_health():
 
 @app.route("/api/start", methods=["POST"])
 def api_start():
+    if not ROS_AVAILABLE:
+        return jsonify({"ok": False, "error": "ROS is not available on this system"}), 503
     indices = parse_indices_param(request.form.get("indices"))
     if indices is None:
         indices = detect_video_indices()
@@ -856,11 +903,15 @@ def api_start():
 
 @app.route("/api/stop", methods=["POST"])
 def api_stop():
+    if not ROS_AVAILABLE:
+        return jsonify({"ok": False, "error": "ROS is not available on this system"}), 503
     LAUNCH.stop()
     return jsonify({"ok": True})
 
 @app.route("/stream")
 def stream():
+    if not ROS_AVAILABLE:
+        abort(503, description="ROS is not available in this environment")
     topic = request.args.get("topic", "")
     if not topic:
         return "Missing ?topic=/ns/yolo/image_overlay", 400
@@ -903,7 +954,7 @@ def stream():
 
     return Response(gen(), mimetype="multipart/x-mixed-replace; boundary=frame")
 
-# -------- Offline Analysis UI & APIs --------
+# -------- Offline Analysis UI & APIs (built-in) --------
 @app.route("/analyze")
 def analyze_page():
     return render_template("analyze.html")
@@ -1075,15 +1126,18 @@ def api_analyze_summary():
 # ---------- Clean shutdown ----------
 def _teardown():
     try:
-        LAUNCH.stop()
+        if ROS_AVAILABLE:
+            LAUNCH.stop()
     except Exception:
         pass
     try:
-        ROS.shutdown()
+        if ROS_AVAILABLE and ROS:
+            ROS.shutdown()
     except Exception:
         pass
     try:
-        rclpy.shutdown()
+        if ROS_AVAILABLE:
+            rclpy.shutdown()
     except Exception:
         pass
 
