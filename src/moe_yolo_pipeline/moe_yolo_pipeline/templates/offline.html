@@ -8,7 +8,7 @@
         <input type="file" name="file" accept="video/*,.db3,.bag" required />
       </label>
 
-      <div class="row">
+      <div class="row" style="gap:16px;align-items:flex-end;flex-wrap:wrap">
         <div>
           <label>Model
             <input type="text" name="model" value="yolo11n.pt"/>
@@ -32,6 +32,14 @@
             </select>
           </label>
         </div>
+
+        <!-- NEW: Which classes to include -->
+        <fieldset style="border:none;padding:0;margin:0 0 8px 0">
+          <legend class="muted-small" style="margin-bottom:4px">Track classes</legend>
+          <label style="margin-right:12px"><input type="checkbox" id="inc-vehicles" checked> Vehicles</label>
+          <label style="margin-right:12px"><input type="checkbox" id="inc-person"> Pedestrians</label>
+          <label><input type="checkbox" id="inc-bicycle"> Bicycles</label>
+        </fieldset>
       </div>
 
       <button type="submit" class="btn primary">Analyze</button>
@@ -65,12 +73,25 @@
   const csvEl = document.getElementById("csv");
   const jsonEl = document.getElementById("json");
 
+  function buildIncludeList() {
+    const inc = [];
+    if (document.getElementById("inc-vehicles").checked) {
+      inc.push("car","motorcycle","bus","truck");
+    }
+    if (document.getElementById("inc-person").checked) inc.push("person");
+    if (document.getElementById("inc-bicycle").checked) inc.push("bicycle");
+    return inc.join(",");
+  }
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const data = new FormData(form);
 
-    // our backend accepts both "model" and "model_path"; send both for safety
+    // send both names so backend is flexible
     if (!data.get("model_path")) data.append("model_path", data.get("model") || "yolo11n.pt");
+
+    // NEW: classes to include
+    data.append("include", buildIncludeList());
 
     const res = await fetch("/offline/analyze", { method: "POST", body: data });
     const j = await res.json().catch(()=>({ok:false,error:"bad response"}));

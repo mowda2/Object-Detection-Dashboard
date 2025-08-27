@@ -23,7 +23,8 @@ def offline_analyze():
     model = request.form.get("model", request.form.get("model_path", "yolo11n.pt"))
     conf = float(request.form.get("conf", "0.25"))
     mpp = float(request.form.get("meters_per_pixel", "0.05"))
-    device = request.form.get("device", "cpu")  # good default on Mac
+    device = request.form.get("device", "cpu")  # default cpu on Mac
+    include = request.form.get("include", "")   # comma-separated names
 
     jid = uuid.uuid4().hex[:12]
     job_dir = os.path.join(JOBS_DIR, jid)
@@ -63,6 +64,7 @@ def offline_analyze():
             "conf": conf,
             "meters_per_pixel": mpp,
             "device": device,
+            "include": include,  # NEW
             "progress_cb": progress_cb,
             "message_cb": message_cb,
         }
