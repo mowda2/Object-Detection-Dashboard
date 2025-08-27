@@ -35,19 +35,15 @@ def _resolve_allowed_ids(model_names, include_names) -> set:
         if n in inv:
             ids.add(inv[n])
     if not ids:
-        coco_guess = {
-            "person": 0, "bicycle": 1, "car": 2, "motorcycle": 3,
-            "bus": 5, "truck": 7
-        }
+        coco_guess = {"person":0,"bicycle":1,"car":2,"motorcycle":3,"bus":5,"truck":7}
         for n in include_names:
-            if n in coco_guess:
-                ids.add(coco_guess[n])
+            if n in coco_guess: ids.add(coco_guess[n])
     return ids
 
 def run_offline_speed_job(job_rec: Dict):
     """
     Inputs in job_rec:
-      src, out_video, out_csv, [out_json]
+      src, out_video, out_csv, [out_json], [poster_path]
     Options:
       model_path, conf, meters_per_pixel, device ('cuda'|'cpu'), include (names),
       progress_cb, message_cb
@@ -59,7 +55,9 @@ def run_offline_speed_job(job_rec: Dict):
         src = job_rec["src"]
         out_video = job_rec["out_video"]
         out_csv = job_rec["out_csv"]
-        out_json = job_rec.get("out_json")  # may be None
+        out_json = job_rec.get("out_json")
+        poster_path = job_rec.get("poster_path")
+
         model_path = job_rec.get("model_path", "yolo11n.pt")
         conf = float(job_rec.get("conf", 0.25))
         meters_per_pixel = float(job_rec.get("meters_per_pixel", 0.05))
@@ -83,6 +81,14 @@ def run_offline_speed_job(job_rec: Dict):
         fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
         width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+        # Save poster from first frame (if asked)
+        if poster_path:
+            pos = int(cap.get(cv2.CAP_PROP_POS_FRAMES) or 0)
+            ok, fr = cap.read()
+            if ok:
+                cv2.imwrite(poster_path, fr, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+            cap.set(cv2.CAP_PROP_POS_FRAMES, pos)
 
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         writer = cv2.VideoWriter(out_video, fourcc, fps, (width, height))
@@ -157,7 +163,7 @@ def run_offline_speed_job(job_rec: Dict):
                         ema_speed[tid] = spd_kmh
                     last_pt[tid] = (cx, cy, now_t)
 
-                    # seen maps
+                    # seen maps (note: counts are per raw track id)
                     seen_by_class[cname].add(tid)
                     seen_all_ids.add(tid)
 
