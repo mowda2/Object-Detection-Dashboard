@@ -23,7 +23,7 @@ def offline_analyze():
     model = request.form.get("model", request.form.get("model_path", "yolo11n.pt"))
     conf = float(request.form.get("conf", "0.25"))
     mpp = float(request.form.get("meters_per_pixel", "0.05"))
-    device = request.form.get("device", "cpu")  # default cpu on Mac
+    device = request.form.get("device", "cpu")
     include = request.form.get("include", "")   # comma-separated names
 
     jid = uuid.uuid4().hex[:12]
@@ -60,11 +60,12 @@ def offline_analyze():
             "src": src_path,
             "out_video": out_video,
             "out_csv": out_csv,
+            "out_json": out_json,        # <-- NEW: analyzer will write stats JSON here
             "model_path": model,
             "conf": conf,
             "meters_per_pixel": mpp,
             "device": device,
-            "include": include,  # NEW
+            "include": include,
             "progress_cb": progress_cb,
             "message_cb": message_cb,
         }
@@ -107,7 +108,7 @@ def offline_result(jid, kind):
     if kind == "csv":
         return send_file(job["csv"], mimetype="text/csv", as_attachment=True, download_name="tracks.csv")
     if kind == "json":
-        # create a tiny JSON summary from CSV if not present
+        # If JSON wasn't created (older jobs), fallback to a tiny summary
         if not os.path.exists(job["json"]):
             try:
                 import csv, json as _json

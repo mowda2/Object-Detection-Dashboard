@@ -3,7 +3,7 @@
   <section class="card">
     <h2>Offline Analysis – Tracking + Speed</h2>
 
-    <form id="offline-form" class="card" method="post" enctype="multipart/form-data">
+    <form id="offline-form" class="card" method="post" enctype="multipart/form-data" style="gap:12px">
       <label>Upload video / bag:
         <input type="file" name="file" accept="video/*,.db3,.bag" required />
       </label>
@@ -33,7 +33,7 @@
           </label>
         </div>
 
-        <!-- NEW: Which classes to include -->
+        <!-- Track classes -->
         <fieldset style="border:none;padding:0;margin:0 0 8px 0">
           <legend class="muted-small" style="margin-bottom:4px">Track classes</legend>
           <label style="margin-right:12px"><input type="checkbox" id="inc-vehicles" checked> Vehicles</label>
@@ -42,36 +42,53 @@
         </fieldset>
       </div>
 
-      <button type="submit" class="btn primary">Analyze</button>
+      <button type="submit" class="btn primary" id="btn-analyze">Analyze</button>
     </form>
   </section>
 
+  <!-- Progress -->
   <section id="status" class="card" style="display:none;">
-    <div>State: <span id="state">idle</span></div>
-    <div class="progress">
-      <div id="bar" class="bar" style="width:0%"></div>
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <div>State: <span id="state">idle</span></div>
+      <div id="pct" class="muted-small">0%</div>
     </div>
-    <div class="muted-small" id="msg"></div>
+    <div class="progress" style="height:10px;border-radius:999px;overflow:hidden">
+      <div id="bar" class="bar" style="width:0%;height:10px"></div>
+    </div>
+    <div class="muted-small" id="msg" style="margin-top:6px">Waiting…</div>
   </section>
 
+  <!-- Results -->
   <section id="results" class="card" style="display:none;">
     <video id="video" controls playsinline class="video" style="width:100%;border-radius:8px;"></video>
-    <p class="row">
+    <p class="row" style="gap:8px;margin-top:8px">
       <a id="csv" href="#" class="btn">Download CSV</a>
       <a id="json" href="#" class="btn">Download Summary</a>
     </p>
   </section>
 
+  <!-- Stats -->
+  <section id="stats" class="card" style="display:none;">
+    <h3 style="margin:0 0 8px 0">Totals by category</h3>
+    <div id="stats-grid" style="display:flex;flex-wrap:wrap;gap:10px"></div>
+    <div id="stats-note" class="muted-small" style="margin-top:6px"></div>
+  </section>
+
   <script>
   const form = document.getElementById("offline-form");
+  const submitBtn = document.getElementById("btn-analyze");
   const statusBox = document.getElementById("status");
   const stateEl = document.getElementById("state");
   const bar = document.getElementById("bar");
+  const pctEl = document.getElementById("pct");
   const msgEl = document.getElementById("msg");
   const results = document.getElementById("results");
   const videoEl = document.getElementById("video");
   const csvEl = document.getElementById("csv");
   const jsonEl = document.getElementById("json");
+  const statsBox = document.getElementById("stats");
+  const statsGrid = document.getElementById("stats-grid");
+  const statsNote = document.getElementById("stats-note");
 
   function buildIncludeList() {
     const inc = [];
@@ -83,6 +100,26 @@
     return inc.join(",");
   }
 
+  function setDisabled(disabled) {
+    Array.from(form.elements).forEach(el => el.disabled = disabled);
+    submitBtn.disabled = disabled;
+  }
+
+  function renderStats(data) {
+    statsGrid.innerHTML = "";
+    const by = (data && data.unique_objects_by_class) || {};
+    const total = data && (data.unique_objects_total ?? null);
+    for (const [k,v] of Object.entries(by)) {
+      const chip = document.createElement("div");
+      chip.className = "badge";           // reuse badge styling
+      chip.style.fontSize = "14px";
+      chip.textContent = `${k}: ${v}`;
+      statsGrid.appendChild(chip);
+    }
+    statsNote.textContent = total != null ? `Unique objects tracked: ${total}` : "";
+    statsBox.style.display = "block";
+  }
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const data = new FormData(form);
@@ -90,42 +127,63 @@
     // send both names so backend is flexible
     if (!data.get("model_path")) data.append("model_path", data.get("model") || "yolo11n.pt");
 
-    // NEW: classes to include
+    // selected classes
     data.append("include", buildIncludeList());
+
+    setDisabled(true);
+    statusBox.style.display = "";
+    results.style.display = "none";
+    statsBox.style.display = "none";
+    stateEl.textContent = "running";
+    bar.style.width = "5%";
+    pctEl.textContent = "5%";
+    msgEl.textContent = "Uploading…";
 
     const res = await fetch("/offline/analyze", { method: "POST", body: data });
     const j = await res.json().catch(()=>({ok:false,error:"bad response"}));
-    if (!j || !j.ok) { alert((j && j.error) || "Upload failed"); return; }
+    if (!j || !j.ok) { alert((j && j.error) || "Upload failed"); setDisabled(false); return; }
 
-    statusBox.style.display = "";
-    stateEl.textContent = "running";
-    bar.style.width = "5%";
     msgEl.textContent = "Starting…";
-
     const jid = j.job_id;
+
     const t = setInterval(async () => {
       const r = await fetch(`/offline/status/${jid}`);
       const s = await r.json().catch(()=>({ok:false}));
       if (!s.ok) return;
 
       stateEl.textContent = s.state;
-      const pct = Math.round((s.progress || 0) * 100);
+      const pct = Math.max(5, Math.round((s.progress || 0) * 100));
       bar.style.width = pct + "%";
+      pctEl.textContent = pct + "%";
       if (s.error) msgEl.textContent = s.error;
       if (s.message) msgEl.textContent = s.message;
 
       if (s.state === "done") {
         clearInterval(t);
+        setDisabled(false);
         results.style.display = "";
+
         if (s.video_url) videoEl.src = s.video_url;
         if (s.csv_url)  { csvEl.href  = s.csv_url;  }
         if (s.json_url) { jsonEl.href = s.json_url; }
+
+        // fetch summary JSON for the stats panel
+        try {
+          if (s.json_url) {
+            const jr = await fetch(s.json_url);
+            const data = await jr.json();
+            renderStats(data);
+          }
+        } catch (e) {
+          console.warn("No JSON summary:", e);
+        }
       }
       if (s.state === "error") {
         clearInterval(t);
+        setDisabled(false);
         alert("Error: " + (s.error || "unknown"));
       }
-    }, 1200);
+    }, 1000);
   });
   </script>
 {% endblock %}

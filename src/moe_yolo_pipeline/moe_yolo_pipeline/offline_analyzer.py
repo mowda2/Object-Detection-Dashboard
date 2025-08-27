@@ -1,24 +1,22 @@
-import os, time, csv
+import os, time, csv, json
 from typing import Dict, Iterable
 import numpy as np
 import cv2
 from ultralytics import YOLO
 import supervision as sv
+from collections import defaultdict
 
 def _center_xyxy(xyxy):
     x1, y1, x2, y2 = xyxy
     return ((x1 + x2) / 2.0, (y1 + y2) / 2.0)
 
 def _normalize_names(names: Iterable[str]) -> set:
-    """
-    Normalize requested class names (aliases -> canonical coco names).
-    """
     alias = {
         "people": "person",
         "pedestrian": "person", "pedestrians": "person",
         "bike": "bicycle", "bikes": "bicycle", "cycle": "bicycle",
         "motorbike": "motorcycle", "motorbikes": "motorcycle",
-        "van": "truck"  # coarse mapping; many models don't have separate 'van'
+        "van": "truck"
     }
     out = set()
     for n in names:
@@ -28,11 +26,6 @@ def _normalize_names(names: Iterable[str]) -> set:
     return out
 
 def _resolve_allowed_ids(model_names, include_names) -> set:
-    """
-    Map class names -> IDs based on model.names (dict or list).
-    Fallback to common COCO labels if not present.
-    """
-    # build inverse map from model
     if isinstance(model_names, dict):
         inv = {v.lower(): int(k) for k, v in model_names.items()}
     else:
@@ -41,7 +34,6 @@ def _resolve_allowed_ids(model_names, include_names) -> set:
     for n in include_names:
         if n in inv:
             ids.add(inv[n])
-    # If nothing resolved and it looks like a COCO model, add a sensible default
     if not ids:
         coco_guess = {
             "person": 0, "bicycle": 1, "car": 2, "motorcycle": 3,
@@ -54,12 +46,11 @@ def _resolve_allowed_ids(model_names, include_names) -> set:
 
 def run_offline_speed_job(job_rec: Dict):
     """
-    Expects in job_rec:
-      src, out_video, out_csv
-    Optional:
-      model_path (default: yolo11n.pt), conf (0.25), meters_per_pixel (0.05),
-      device ('cuda'|'cpu'), include (comma string or list of names),
-      progress_cb (callable), message_cb (callable)
+    Inputs in job_rec:
+      src, out_video, out_csv, [out_json]
+    Options:
+      model_path, conf, meters_per_pixel, device ('cuda'|'cpu'), include (names),
+      progress_cb, message_cb
     """
     progress_cb = job_rec.get("progress_cb", lambda p: None)
     message_cb = job_rec.get("message_cb", lambda m: None)
@@ -68,19 +59,19 @@ def run_offline_speed_job(job_rec: Dict):
         src = job_rec["src"]
         out_video = job_rec["out_video"]
         out_csv = job_rec["out_csv"]
+        out_json = job_rec.get("out_json")  # may be None
         model_path = job_rec.get("model_path", "yolo11n.pt")
         conf = float(job_rec.get("conf", 0.25))
-        meters_per_pixel = float(job_rec.get("meters_per_pixel", 0.05))  # 5 cm/px example
+        meters_per_pixel = float(job_rec.get("meters_per_pixel", 0.05))
         device = job_rec.get("device", "cuda")
 
-        # Include set: default to vehicles
         include = job_rec.get("include", "")
         if isinstance(include, str):
             include_names = [s.strip() for s in include.split(",") if s.strip()]
         else:
             include_names = list(include or [])
         if not include_names:
-            include_names = ["car", "motorcycle", "bus", "truck"]  # default: vehicles
+            include_names = ["car", "motorcycle", "bus", "truck"]
         include_names = _normalize_names(include_names)
 
         message_cb("Opening video…")
@@ -106,7 +97,6 @@ def run_offline_speed_job(job_rec: Dict):
         except Exception:
             pass
 
-        # Resolve IDs *after* model is loaded (so names are known)
         allowed_ids = _resolve_allowed_ids(model.names, include_names)
 
         tracker = sv.ByteTrack()
@@ -115,6 +105,8 @@ def run_offline_speed_job(job_rec: Dict):
 
         last_pt: Dict[int, tuple] = {}
         ema_speed: Dict[int, float] = {}
+        seen_by_class = defaultdict(set)   # cname -> {track_ids}
+        seen_all_ids = set()
 
         with open(out_csv, "w", newline="") as fcsv:
             writer_csv = csv.writer(fcsv)
@@ -128,11 +120,11 @@ def run_offline_speed_job(job_rec: Dict):
                     break
                 frame_idx += 1
 
-                # ---- inference
+                # inference
                 y = model(frame, conf=conf, verbose=False)[0]
                 det = sv.Detections.from_ultralytics(y)
 
-                # ---- Filter to allowed classes (NumPy-safe)
+                # class filter
                 if len(det) > 0:
                     if det.class_id is None or not len(det.class_id):
                         det = det[:0]
@@ -140,10 +132,10 @@ def run_offline_speed_job(job_rec: Dict):
                         keep = np.isin(det.class_id, list(allowed_ids))
                         det = det[keep]
 
-                # ---- tracking
+                # tracking
                 det = tracker.update_with_detections(det)
 
-                # ---- annotate + log speeds
+                # annotate + log
                 labels = []
                 now_t = frame_idx / fps
                 for i in range(len(det)):
@@ -165,6 +157,10 @@ def run_offline_speed_job(job_rec: Dict):
                         ema_speed[tid] = spd_kmh
                     last_pt[tid] = (cx, cy, now_t)
 
+                    # seen maps
+                    seen_by_class[cname].add(tid)
+                    seen_all_ids.add(tid)
+
                     labels.append(f"{cname} • ID {tid} • {spd_kmh:0.1f} km/h")
                     writer_csv.writerow([frame_idx, tid, cname, f"{cx:.2f}", f"{cy:.2f}", f"{spd_kmh:.3f}"])
 
@@ -181,6 +177,18 @@ def run_offline_speed_job(job_rec: Dict):
 
         cap.release()
         writer.release()
+
+        # Write JSON summary (per-class unique track counts)
+        if out_json:
+            summary = {
+                "fps": float(fps),
+                "frames": int(frame_idx),
+                "unique_objects_total": int(len(seen_all_ids)),
+                "unique_objects_by_class": {k: int(len(v)) for k, v in sorted(seen_by_class.items())}
+            }
+            with open(out_json, "w") as jf:
+                json.dump(summary, jf, indent=2)
+
         progress_cb(1.0)
         message_cb("Done.")
 
