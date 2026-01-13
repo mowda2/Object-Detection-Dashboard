@@ -1,0 +1,253 @@
+{% extends "index.html" %}
+{% block content %}
+<section class="card">
+  <h2>🔗 Roboflow Hosted Inference</h2>
+  <p class="muted-small" style="margin-bottom:16px">
+    Run object detection using Roboflow's cloud-hosted inference API.<br>
+    This feature requires an internet connection and valid API credentials.
+  </p>
+
+  <!-- Configuration Status -->
+  <div class="card"
+    style="background:#0d1117;border:1px solid {% if is_configured %}#238636{% else %}#f85149{% endif %}">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      {% if is_configured %}
+      <span style="color:#238636;font-size:20px">✓</span>
+      <strong style="color:#238636">Roboflow Configured</strong>
+      {% else %}
+      <span style="color:#f85149;font-size:20px">⚠</span>
+      <strong style="color:#f85149">Configuration Required</strong>
+      {% endif %}
+    </div>
+
+    {% if not is_configured %}
+    <div style="background:#161b22;padding:12px;border-radius:8px;margin-bottom:12px">
+      <p style="margin:0 0 8px 0;color:#8b949e">Missing configuration:</p>
+      <ul style="margin:0;padding-left:20px;color:#f0883e">
+        {% for item in missing_config %}
+        <li>{{ item }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div style="background:#161b22;padding:12px;border-radius:8px">
+      <p style="margin:0 0 8px 0;color:#8b949e">To enable Roboflow, set these environment variables before starting the
+        dashboard:</p>
+      <pre
+        style="margin:0;background:#0d1117;padding:10px;border-radius:6px;overflow-x:auto;font-size:12px;color:#79c0ff">export ROBOFLOW_API_KEY="your_api_key_here"
+export ROBOFLOW_MODEL="your-workspace/your-model"
+# Then restart the dashboard</pre>
+    </div>
+    {% else %}
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div><span class="muted-small">Model:</span> <code>{{ config_status.model }}</code></div>
+      <div><span class="muted-small">Confidence:</span> {{ config_status.confidence }}</div>
+      <div><span class="muted-small">Overlap:</span> {{ config_status.overlap }}</div>
+      <div><span class="muted-small">API Calls:</span> {{ config_status.total_calls }}</div>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+{% if is_configured %}
+<section class="card">
+  <h3>Upload Video for Analysis</h3>
+
+  <form id="rf-upload-form" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:16px">
+
+    <div>
+      <label style="display:block;margin-bottom:6px">Video File</label>
+      <input type="file" name="file" id="rf-file" accept=".mp4,.mov,.avi,.mkv,.webm" required
+        style="width:100%;padding:10px;background:#161b22;border:1px solid #30363d;border-radius:8px">
+      <p class="muted-small" style="margin-top:4px">Supported: MP4, MOV, AVI, MKV, WebM (max 500MB)</p>
+    </div>
+
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:150px">
+        <label style="display:block;margin-bottom:6px">Frame Skip</label>
+        <input type="number" name="frame_skip" id="rf-frame-skip" value="3" min="1" max="30"
+          style="width:100%;padding:8px;background:#161b22;border:1px solid #30363d;border-radius:6px">
+        <p class="muted-small" style="margin-top:4px">Process every Nth frame (higher = fewer API calls)</p>
+      </div>
+
+      <div style="flex:1;min-width:150px">
+        <label style="display:block;margin-bottom:6px">Confidence</label>
+        <input type="number" name="confidence" id="rf-confidence" value="0.4" min="0.1" max="1.0" step="0.05"
+          style="width:100%;padding:8px;background:#161b22;border:1px solid #30363d;border-radius:6px">
+        <p class="muted-small" style="margin-top:4px">Detection threshold (0.1 - 1.0)</p>
+      </div>
+
+      <div style="flex:1;min-width:150px">
+        <label style="display:block;margin-bottom:6px">Overlap (IOU)</label>
+        <input type="number" name="overlap" id="rf-overlap" value="0.3" min="0.1" max="1.0" step="0.05"
+          style="width:100%;padding:8px;background:#161b22;border:1px solid #30363d;border-radius:6px">
+        <p class="muted-small" style="margin-top:4px">Non-max suppression threshold</p>
+      </div>
+    </div>
+
+    <!-- Estimation Display -->
+    <div id="rf-estimate"
+      style="display:none;background:#161b22;padding:12px;border-radius:8px;border:1px solid #30363d">
+      <div style="display:flex;gap:20px;flex-wrap:wrap">
+        <div><span class="muted-small">Duration:</span> <span id="rf-est-duration">-</span></div>
+        <div><span class="muted-small">Total Frames:</span> <span id="rf-est-frames">-</span></div>
+        <div><span class="muted-small">Estimated API Calls:</span> <strong id="rf-est-calls"
+            style="color:#f0883e">-</strong></div>
+      </div>
+      <p class="muted-small" style="margin:8px 0 0 0;color:#8b949e">
+        ⚠️ Each API call counts against your Roboflow usage quota.
+      </p>
+    </div>
+
+    <button type="submit" class="btn primary" id="rf-submit" style="align-self:flex-start;padding:12px 24px">
+      🚀 Start Analysis
+    </button>
+  </form>
+</section>
+
+<!-- Progress Section (hidden initially) -->
+<section id="rf-progress" class="card" style="display:none">
+  <h3>Processing</h3>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <span id="rf-status-text">Starting...</span>
+    <span id="rf-progress-pct">0%</span>
+  </div>
+  <div style="background:#161b22;border-radius:999px;height:12px;overflow:hidden">
+    <div id="rf-progress-bar"
+      style="background:linear-gradient(90deg,#238636,#2ea043);height:100%;width:0%;transition:width 0.3s"></div>
+  </div>
+  <div class="muted-small" style="margin-top:8px">
+    <span>API Calls: <span id="rf-api-calls">0</span> / <span id="rf-api-total">0</span></span>
+    <span style="margin-left:20px">Frame: <span id="rf-current-frame">0</span></span>
+  </div>
+</section>
+
+{% endif %}
+
+<script>
+  (function () {
+    // Enable nav dropdown on this page
+    const wrap = document.getElementById('navwrap');
+    const btn = document.getElementById('navbtn');
+    const menu = document.getElementById('navmenu');
+    if (btn && menu) {
+      const open = () => { wrap && wrap.classList.add('open'); menu.hidden = false; btn.setAttribute('aria-expanded', 'true'); };
+      const close = () => { wrap && wrap.classList.remove('open'); menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
+      btn.addEventListener('click', (e) => { e.stopPropagation(); menu.hidden ? open() : close(); });
+      document.addEventListener('click', close);
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+    }
+
+    {% if is_configured %}
+    const form = document.getElementById('rf-upload-form');
+    const fileInput = document.getElementById('rf-file');
+    const frameSkipInput = document.getElementById('rf-frame-skip');
+    const estimateDiv = document.getElementById('rf-estimate');
+    const progressSection = document.getElementById('rf-progress');
+    const submitBtn = document.getElementById('rf-submit');
+
+    // Update estimate when file or frame_skip changes
+    function updateEstimate() {
+      const file = fileInput.files[0];
+      if (!file) {
+        estimateDiv.style.display = 'none';
+        return;
+      }
+
+      // Create video element to get duration
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = function () {
+        window.URL.revokeObjectURL(video.src);
+        const duration = video.duration;
+        const fps = 30; // Assume 30fps for estimation
+        const totalFrames = Math.floor(duration * fps);
+        const frameSkip = parseInt(frameSkipInput.value) || 3;
+        const apiCalls = Math.ceil(totalFrames / frameSkip);
+
+        document.getElementById('rf-est-duration').textContent = duration.toFixed(1) + 's';
+        document.getElementById('rf-est-frames').textContent = totalFrames;
+        document.getElementById('rf-est-calls').textContent = apiCalls;
+        estimateDiv.style.display = 'block';
+      };
+      video.src = URL.createObjectURL(file);
+    }
+
+    fileInput.addEventListener('change', updateEstimate);
+    frameSkipInput.addEventListener('change', updateEstimate);
+    frameSkipInput.addEventListener('input', updateEstimate);
+
+    // Form submission
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+
+      const formData = new FormData(form);
+      submitBtn.disabled = true;
+      submitBtn.textContent = '⏳ Uploading...';
+
+      try {
+        const response = await fetch('/roboflow/upload', {
+          method: 'POST',
+          body: formData
+        });
+
+        const result = await response.json();
+
+        if (!result.ok) {
+          alert('Error: ' + (result.error || 'Upload failed'));
+          submitBtn.disabled = false;
+          submitBtn.textContent = '🚀 Start Analysis';
+          return;
+        }
+
+        // Show progress and start polling
+        const jobId = result.job_id;
+        progressSection.style.display = 'block';
+        document.getElementById('rf-api-total').textContent = result.estimated_api_calls;
+
+        submitBtn.textContent = '✓ Processing...';
+
+        // Poll for status
+        const pollInterval = setInterval(async () => {
+          try {
+            const statusRes = await fetch('/roboflow/status/' + jobId);
+            const status = await statusRes.json();
+
+            if (!status.ok) {
+              clearInterval(pollInterval);
+              alert('Error: ' + (status.error || 'Failed to get status'));
+              return;
+            }
+
+            // Update UI
+            const pct = Math.round((status.progress || 0) * 100);
+            document.getElementById('rf-progress-bar').style.width = pct + '%';
+            document.getElementById('rf-progress-pct').textContent = pct + '%';
+            document.getElementById('rf-status-text').textContent = status.message || 'Processing...';
+            document.getElementById('rf-api-calls').textContent = status.api_calls_made || 0;
+            document.getElementById('rf-current-frame').textContent = status.current_frame || 0;
+
+            if (status.state === 'done') {
+              clearInterval(pollInterval);
+              // Redirect to viewer
+              window.location.href = '/roboflow/job/' + jobId;
+            } else if (status.state === 'error') {
+              clearInterval(pollInterval);
+              alert('Processing error: ' + (status.error || 'Unknown error'));
+              submitBtn.disabled = false;
+              submitBtn.textContent = '🚀 Start Analysis';
+            }
+          } catch (err) {
+            console.error('Poll error:', err);
+          }
+        }, 1000);
+
+      } catch (err) {
+        alert('Upload error: ' + err.message);
+        submitBtn.disabled = false;
+        submitBtn.textContent = '🚀 Start Analysis';
+      }
+    });
+    {% endif %}
+  })();
+</script>
+{% endblock %}

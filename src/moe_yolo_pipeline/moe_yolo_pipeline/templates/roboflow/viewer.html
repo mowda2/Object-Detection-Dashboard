@@ -1,0 +1,312 @@
+{% extends "index.html" %}
+{% block content %}
+<section class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+    <div>
+      <h2 style="margin:0">🔗 Roboflow Results</h2>
+      <p class="muted-small" style="margin:4px 0 0 0">Job: {{ job_id }} • {{ meta.filename or 'Unknown' }}</p>
+    </div>
+    <div style="display:flex;gap:8px">
+      <a href="/roboflow/download/{{ job_id }}/csv" class="btn">📥 CSV</a>
+      <a href="/roboflow/download/{{ job_id }}/json" class="btn">📥 Summary</a>
+      <a href="/roboflow" class="btn">← Back</a>
+    </div>
+  </div>
+</section>
+
+<!-- Video Player Section -->
+<section class="card" style="padding:0;overflow:hidden">
+  <div id="rf-viewer" style="position:relative;background:#000">
+    <img id="rf-frame-img" style="width:100%;display:block" alt="Frame">
+
+    <!-- Overlay for loading/error states -->
+    <div id="rf-overlay"
+      style="position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7)">
+      <div style="text-align:center;color:#fff">
+        <div id="rf-overlay-text">Loading...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div style="padding:12px;background:#161b22;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <!-- Playback controls -->
+    <div style="display:flex;gap:6px">
+      <button id="rf-prev" class="btn" title="Previous frame">⏮</button>
+      <button id="rf-play" class="btn primary" title="Play/Pause">▶️</button>
+      <button id="rf-next" class="btn" title="Next frame">⏭</button>
+    </div>
+
+    <!-- Seek slider -->
+    <div style="flex:1;min-width:200px">
+      <input type="range" id="rf-seek" min="0" max="100" value="0" style="width:100%">
+    </div>
+
+    <!-- Frame info -->
+    <div class="muted-small">
+      Frame: <span id="rf-frame-num">0</span> / <span id="rf-frame-total">0</span>
+    </div>
+
+    <!-- Speed control -->
+    <div style="display:flex;align-items:center;gap:6px">
+      <label class="muted-small">Speed:</label>
+      <select id="rf-speed"
+        style="padding:4px;background:#0d1117;border:1px solid #30363d;border-radius:4px;color:#fff">
+        <option value="0.25">0.25x</option>
+        <option value="0.5">0.5x</option>
+        <option value="1" selected>1x</option>
+        <option value="2">2x</option>
+        <option value="4">4x</option>
+      </select>
+    </div>
+  </div>
+</section>
+
+<!-- Stats Section -->
+<section class="card">
+  <h3>Processing Summary</h3>
+  <div style="display:flex;gap:20px;flex-wrap:wrap">
+    <div class="badge">Frames: <span id="rf-stat-frames">{{ meta.total_frames or '-' }}</span></div>
+    <div class="badge">Processed: <span id="rf-stat-processed">{{ meta.processed_frames or '-' }}</span></div>
+    <div class="badge">API Calls: <span id="rf-stat-api">{{ meta.api_calls_made or '-' }}</span></div>
+    <div class="badge">Frame Skip: {{ meta.frame_skip or '-' }}</div>
+    <div class="badge">FPS: {{ meta.fps|round(1) if meta.fps else '-' }}</div>
+  </div>
+</section>
+
+<!-- Detections List (optional) -->
+<section class="card" id="rf-detections-section" style="display:none">
+  <h3>Detections for Frame <span id="rf-det-frame">-</span></h3>
+  <div id="rf-detections-list" style="max-height:200px;overflow-y:auto">
+    <p class="muted-small">No detections</p>
+  </div>
+</section>
+
+<script>
+  (function () {
+    // Enable nav dropdown
+    const wrap = document.getElementById('navwrap');
+    const btn = document.getElementById('navbtn');
+    const menu = document.getElementById('navmenu');
+    if (btn && menu) {
+      const open = () => { wrap && wrap.classList.add('open'); menu.hidden = false; btn.setAttribute('aria-expanded', 'true'); };
+      const close = () => { wrap && wrap.classList.remove('open'); menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
+      btn.addEventListener('click', (e) => { e.stopPropagation(); menu.hidden ? open() : close(); });
+      document.addEventListener('click', close);
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+    }
+
+    const jobId = "{{ job_id }}";
+    const frameImg = document.getElementById('rf-frame-img');
+    const overlay = document.getElementById('rf-overlay');
+    const overlayText = document.getElementById('rf-overlay-text');
+    const seekSlider = document.getElementById('rf-seek');
+    const playBtn = document.getElementById('rf-play');
+    const prevBtn = document.getElementById('rf-prev');
+    const nextBtn = document.getElementById('rf-next');
+    const speedSelect = document.getElementById('rf-speed');
+    const frameNumEl = document.getElementById('rf-frame-num');
+    const frameTotalEl = document.getElementById('rf-frame-total');
+
+    let availableFrames = [];
+    let currentFrameIndex = 0;
+    let isPlaying = false;
+    let playInterval = null;
+    let playSpeed = 1.0;
+    let allDetections = {};
+    let baseFps = {{ meta.fps or 30 }
+  };
+
+  // Load job status to get available frames
+  async function loadJobStatus() {
+    try {
+      const res = await fetch('/roboflow/status/' + jobId);
+      const data = await res.json();
+
+      if (!data.ok) {
+        overlayText.textContent = 'Error loading job: ' + (data.error || 'Unknown');
+        return;
+      }
+
+      availableFrames = data.available_frames || [];
+      availableFrames.sort((a, b) => a - b);
+
+      if (availableFrames.length === 0) {
+        overlayText.textContent = 'No frames available';
+        return;
+      }
+
+      frameTotalEl.textContent = availableFrames.length;
+      seekSlider.max = availableFrames.length - 1;
+
+      // Update stats
+      document.getElementById('rf-stat-processed').textContent = data.processed_frames || '-';
+      document.getElementById('rf-stat-api').textContent = data.api_calls_made || '-';
+
+      // Load detections
+      await loadDetections();
+
+      // Show first frame
+      showFrame(0);
+
+    } catch (err) {
+      overlayText.textContent = 'Error: ' + err.message;
+    }
+  }
+
+  async function loadDetections() {
+    try {
+      const res = await fetch('/roboflow/detections/' + jobId);
+      const data = await res.json();
+      if (data.ok && data.detections) {
+        data.detections.forEach(d => {
+          allDetections[d.frame] = d.detections;
+        });
+      }
+    } catch (err) {
+      console.warn('Could not load detections:', err);
+    }
+  }
+
+  function showFrame(index) {
+    if (index < 0 || index >= availableFrames.length) return;
+
+    currentFrameIndex = index;
+    const frameNum = availableFrames[index];
+
+    frameImg.src = '/roboflow/frame/' + jobId + '/' + frameNum;
+    frameNumEl.textContent = index + 1;
+    seekSlider.value = index;
+
+    // Update detections list
+    updateDetectionsList(frameNum);
+
+    overlay.style.display = 'none';
+  }
+
+  function updateDetectionsList(frameNum) {
+    const dets = allDetections[frameNum] || [];
+    const section = document.getElementById('rf-detections-section');
+    const list = document.getElementById('rf-detections-list');
+    const frameSpan = document.getElementById('rf-det-frame');
+
+    frameSpan.textContent = frameNum;
+
+    if (dets.length === 0) {
+      list.innerHTML = '<p class="muted-small">No detections</p>';
+    } else {
+      let html = '<div style="display:flex;flex-wrap:wrap;gap:8px">';
+      dets.forEach(d => {
+        html += `<div class="badge">${d.class} (${(d.confidence * 100).toFixed(1)}%)</div>`;
+      });
+      html += '</div>';
+      list.innerHTML = html;
+    }
+
+    section.style.display = 'block';
+  }
+
+  function nextFrame() {
+    if (currentFrameIndex < availableFrames.length - 1) {
+      showFrame(currentFrameIndex + 1);
+    } else if (isPlaying) {
+      stopPlayback();
+    }
+  }
+
+  function prevFrame() {
+    if (currentFrameIndex > 0) {
+      showFrame(currentFrameIndex - 1);
+    }
+  }
+
+  function startPlayback() {
+    if (availableFrames.length === 0) return;
+    isPlaying = true;
+    playBtn.textContent = '⏸️';
+
+    // Calculate interval based on speed and frame skip
+    const frameSkip = {{ meta.frame_skip or 1 }
+  };
+  const effectiveFps = (baseFps / frameSkip) * playSpeed;
+  const interval = Math.max(50, 1000 / effectiveFps);
+
+  playInterval = setInterval(() => {
+    if (currentFrameIndex >= availableFrames.length - 1) {
+      stopPlayback();
+      return;
+    }
+    nextFrame();
+  }, interval);
+  }
+
+  function stopPlayback() {
+    isPlaying = false;
+    playBtn.textContent = '▶️';
+    if (playInterval) {
+      clearInterval(playInterval);
+      playInterval = null;
+    }
+  }
+
+  function togglePlayback() {
+    if (isPlaying) {
+      stopPlayback();
+    } else {
+      startPlayback();
+    }
+  }
+
+  // Event listeners
+  playBtn.addEventListener('click', togglePlayback);
+  prevBtn.addEventListener('click', () => { stopPlayback(); prevFrame(); });
+  nextBtn.addEventListener('click', () => { stopPlayback(); nextFrame(); });
+
+  seekSlider.addEventListener('input', () => {
+    stopPlayback();
+    showFrame(parseInt(seekSlider.value));
+  });
+
+  speedSelect.addEventListener('change', () => {
+    playSpeed = parseFloat(speedSelect.value);
+    if (isPlaying) {
+      stopPlayback();
+      startPlayback();
+    }
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+    switch (e.key) {
+      case ' ':
+        e.preventDefault();
+        togglePlayback();
+        break;
+      case 'ArrowLeft':
+        stopPlayback();
+        prevFrame();
+        break;
+      case 'ArrowRight':
+        stopPlayback();
+        nextFrame();
+        break;
+    }
+  });
+
+  // Image error handling
+  frameImg.addEventListener('error', () => {
+    overlay.style.display = 'flex';
+    overlayText.textContent = 'Frame not available';
+  });
+
+  frameImg.addEventListener('load', () => {
+    overlay.style.display = 'none';
+  });
+
+  // Initialize
+  loadJobStatus();
+}) ();
+</script>
+{% endblock %}

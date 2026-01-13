@@ -56,6 +56,21 @@ def test_library_db_import():
     assert hasattr(library_db, 'LibraryDB')
 
 
+def test_roboflow_client_import():
+    """Test that Roboflow client module can be imported."""
+    from moe_yolo_pipeline.moe_yolo_pipeline import roboflow_client
+    assert roboflow_client is not None
+    assert hasattr(roboflow_client, 'RoboflowClient')
+    assert hasattr(roboflow_client, 'Detection')
+
+
+def test_roboflow_routes_import():
+    """Test that Roboflow routes can be imported."""
+    from moe_yolo_pipeline.moe_yolo_pipeline import roboflow_routes
+    assert roboflow_routes is not None
+    assert hasattr(roboflow_routes, 'roboflow_bp')
+
+
 def test_ros_availability_flag():
     """Test that ROS availability is correctly detected."""
     from moe_yolo_pipeline.moe_yolo_pipeline import web_video_bridge
@@ -76,6 +91,8 @@ def test_flask_routes_registered():
     assert '/offline' in rules
     assert '/library' in rules
     assert '/api/library' in rules
+    # Roboflow routes (Blueprint adds trailing slash)
+    assert '/roboflow/' in rules or '/roboflow' in rules
 
 
 def test_templates_exist():
@@ -84,7 +101,13 @@ def test_templates_exist():
     
     template_dir = os.path.join(os.path.dirname(web_video_bridge.__file__), 'templates')
     
-    required_templates = ['index.html', 'offline.html', 'library.html']
+    required_templates = [
+        'index.html', 
+        'offline.html', 
+        'library.html',
+        'roboflow/index.html',
+        'roboflow/viewer.html',
+    ]
     
     for template in required_templates:
         template_path = os.path.join(template_dir, template)
@@ -138,6 +161,8 @@ if __name__ == '__main__':
         test_offline_routes_import,
         test_offline_analyzer_import,
         test_library_db_import,
+        test_roboflow_client_import,
+        test_roboflow_routes_import,
         test_ros_availability_flag,
         test_flask_routes_registered,
         test_templates_exist,

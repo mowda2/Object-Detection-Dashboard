@@ -1,93 +1,119 @@
 {% extends "index.html" %}
 {% block content %}
-  <section class="card">
-    <h2>Offline Analysis – Tracking + Speed</h2>
+<section class="card">
+  <h2>🎯 Offline Video Analysis</h2>
+  <p class="muted-small" style="margin-top:-4px;margin-bottom:16px">Upload a video for YOLO object detection with
+    ByteTrack tracking and speed estimation</p>
 
-    <form id="offline-form" class="card" method="post" enctype="multipart/form-data" style="gap:12px">
-      <label>Upload video / bag:
-        <input type="file" name="file" accept="video/*,.db3,.bag" required />
-      </label>
+  <form id="offline-form" method="post" enctype="multipart/form-data">
+    <!-- File Upload Section -->
+    <div class="form-section">
+      <div class="form-section-title">📁 Video File</div>
+      <input type="file" name="file" accept="video/*,.db3,.bag" required style="width:100%" />
+      <div class="muted-small" style="margin-top:8px">Supported: MP4, MOV, AVI, MKV, WebM, ROS bags (.db3)</div>
+    </div>
 
-      <div class="row" style="gap:16px;align-items:flex-end;flex-wrap:wrap">
-        <div>
-          <label>Model
-            <input type="text" name="model" value="yolo11n.pt"/>
-          </label>
-        </div>
-        <div>
-          <label>Confidence
-            <input type="number" step="0.01" min="0" max="1" name="conf" value="0.25"/>
-          </label>
-        </div>
-        <div>
-          <label>Meters / pixel
-            <input type="number" step="0.0001" name="meters_per_pixel" value="0.05"/>
-          </label>
-        </div>
-        <div>
-          <label>Device
-            <select name="device">
-              <option value="cuda">cuda</option>
-              <option value="cpu" selected>cpu</option>
-            </select>
-          </label>
-        </div>
-
-        <!-- Track classes -->
-        <fieldset style="border:none;padding:0;margin:0 0 8px 0">
-          <legend class="muted-small" style="margin-bottom:4px">Track classes</legend>
-          <label style="margin-right:12px"><input type="checkbox" id="inc-vehicles" checked> Vehicles</label>
-          <label style="margin-right:12px"><input type="checkbox" id="inc-person"> Pedestrians</label>
-          <label><input type="checkbox" id="inc-bicycle"> Bicycles</label>
-        </fieldset>
+    <!-- Model Settings -->
+    <div class="form-section">
+      <div class="form-section-title">⚙️ Model Settings</div>
+      <div class="form-grid">
+        <label>Model
+          <input type="text" name="model" value="yolo11n.pt" placeholder="yolo11n.pt" />
+        </label>
+        <label>Confidence
+          <input type="number" step="0.01" min="0.1" max="1" name="conf" value="0.25" />
+        </label>
+        <label>Device
+          <select name="device">
+            <option value="cpu" selected>CPU</option>
+            <option value="cuda">CUDA (GPU)</option>
+            <option value="mps">MPS (Apple Silicon)</option>
+          </select>
+        </label>
+        <label>Meters/Pixel
+          <input type="number" step="0.001" min="0.001" name="meters_per_pixel" value="0.05" />
+        </label>
       </div>
-
-      <button type="submit" class="btn primary" id="btn-analyze">Analyze</button>
-    </form>
-  </section>
-
-  <!-- Progress -->
-  <section id="status" class="card" style="display:none;">
-    <div class="row" style="justify-content:space-between;align-items:center">
-      <div>State: <span id="state">idle</span></div>
-      <div id="pct" class="muted-small">0%</div>
     </div>
-    <div class="progress" style="height:10px;border-radius:999px;overflow:hidden">
-      <div id="bar" class="bar" style="width:0%;height:10px"></div>
+
+    <!-- Track Classes -->
+    <div class="form-section">
+      <div class="form-section-title">🏷️ Objects to Track</div>
+      <div style="display:flex;gap:20px;flex-wrap:wrap">
+        <label style="flex-direction:row;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="inc-vehicles" checked>
+          <span>🚗 Vehicles</span>
+        </label>
+        <label style="flex-direction:row;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="inc-person">
+          <span>🚶 Pedestrians</span>
+        </label>
+        <label style="flex-direction:row;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="inc-bicycle">
+          <span>🚲 Bicycles</span>
+        </label>
+      </div>
     </div>
-    <div class="muted-small" id="msg" style="margin-top:6px">Waiting…</div>
-  </section>
 
-  <!-- Results -->
-  <section id="results" class="card" style="display:none;">
-    <video id="video" controls playsinline class="video" style="width:100%;border-radius:8px;"></video>
-    <p class="row" style="gap:8px;margin-top:8px">
-      <a id="csv" href="#" class="btn">Download CSV</a>
-      <a id="json" href="#" class="btn">Download Summary</a>
-    </p>
-  </section>
+    <button type="submit" class="btn primary" id="btn-analyze"
+      style="width:100%;padding:12px;font-size:15px;font-weight:600">
+      🚀 Start Analysis
+    </button>
+  </form>
+</section>
 
-  <!-- Stats -->
-  <section id="stats" class="card" style="display:none;">
-    <h3 style="margin:0 0 8px 0">Totals by category</h3>
-    <div id="stats-grid" style="display:flex;flex-wrap:wrap;gap:10px"></div>
-    <div id="stats-note" class="muted-small" style="margin-top:6px"></div>
-  </section>
+<!-- Progress Section -->
+<section id="status" class="card" style="display:none;">
+  <div class="results-header">
+    <h3 class="results-title">Processing Video</h3>
+    <span class="status-indicator running" id="status-badge">
+      <span id="state">Running</span>
+    </span>
+  </div>
+  <div class="progress" style="height:8px;margin-bottom:12px">
+    <div id="bar" class="bar" style="width:0%;height:8px"></div>
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <span class="muted-small" id="msg">Initializing...</span>
+    <span id="pct" style="font-weight:600;font-size:14px">0%</span>
+  </div>
+</section>
 
-  <script>
+<!-- Results Section -->
+<section id="results" class="card" style="display:none;">
+  <div class="results-header">
+    <h3 class="results-title">✅ Analysis Complete</h3>
+    <div class="results-actions">
+      <a id="csv" href="#" class="btn">📊 CSV</a>
+      <a id="json" href="#" class="btn">📋 Summary</a>
+    </div>
+  </div>
+  <div class="video-container">
+    <video id="video" controls playsinline></video>
+  </div>
+</section>
+
+<!-- Statistics Section -->
+<section id="stats" class="card" style="display:none;">
+  <h3 class="results-title" style="margin-bottom:16px">📈 Detection Statistics</h3>
+  <div id="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(120px, 1fr));gap:12px"></div>
+  <div id="stats-note" class="muted-small" style="margin-top:12px;padding-top:12px;border-top:1px solid #21262d"></div>
+</section>
+
+<script>
   /* --- Ensure the header "Navigate ▾" works on pages that extend index.html --- */
-  (function(){
+  (function () {
     const wrap = document.getElementById('navwrap') || document.querySelector('.navmenu');
-    const btn  = document.getElementById('navbtn');
+    const btn = document.getElementById('navbtn');
     const menu = document.getElementById('navmenu');
     if (!btn || !menu) return;
 
-    const open = () => { if (wrap) wrap.classList.add('open'); menu.hidden = false; btn.setAttribute('aria-expanded','true'); };
-    const close = () => { if (wrap) wrap.classList.remove('open'); menu.hidden = true; btn.setAttribute('aria-expanded','false'); };
+    const open = () => { if (wrap) wrap.classList.add('open'); menu.hidden = false; btn.setAttribute('aria-expanded', 'true'); };
+    const close = () => { if (wrap) wrap.classList.remove('open'); menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
 
-    btn.addEventListener('click', (e)=>{ e.stopPropagation(); menu.hidden ? open() : close(); });
-    document.addEventListener('click', ()=> close());
-    document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') close(); });
+    btn.addEventListener('click', (e) => { e.stopPropagation(); menu.hidden ? open() : close(); });
+    document.addEventListener('click', () => close());
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
   })();
 
   const form = document.getElementById("offline-form");
@@ -108,7 +134,7 @@
   function buildIncludeList() {
     const inc = [];
     if (document.getElementById("inc-vehicles").checked) {
-      inc.push("car","motorcycle","bus","truck");
+      inc.push("car", "motorcycle", "bus", "truck");
     }
     if (document.getElementById("inc-person").checked) inc.push("person");
     if (document.getElementById("inc-bicycle").checked) inc.push("bicycle");
@@ -124,14 +150,13 @@
     statsGrid.innerHTML = "";
     const by = (data && data.unique_objects_by_class) || {};
     const total = data && (data.unique_objects_total ?? null);
-    for (const [k,v] of Object.entries(by)) {
-      const chip = document.createElement("div");
-      chip.className = "badge";
-      chip.style.fontSize = "14px";
-      chip.textContent = `${k}: ${v}`;
-      statsGrid.appendChild(chip);
+    for (const [k, v] of Object.entries(by)) {
+      const badge = document.createElement("div");
+      badge.className = "stat-badge";
+      badge.innerHTML = `<span class="stat-value">${v}</span><span class="stat-label">${k}</span>`;
+      statsGrid.appendChild(badge);
     }
-    statsNote.textContent = total != null ? `Unique objects tracked: ${total}` : "";
+    statsNote.textContent = total != null ? `Total unique objects tracked: ${total}` : "";
     statsBox.style.display = "block";
   }
 
@@ -146,37 +171,43 @@
     statusBox.style.display = "";
     results.style.display = "none";
     statsBox.style.display = "none";
-    stateEl.textContent = "running";
+
+    const badge = document.getElementById("status-badge");
+    badge.className = "status-indicator running";
+    stateEl.textContent = "Running";
     bar.style.width = "5%";
     pctEl.textContent = "5%";
-    msgEl.textContent = "Uploading…";
+    msgEl.textContent = "Uploading video...";
 
     const res = await fetch("/offline/analyze", { method: "POST", body: data });
-    const j = await res.json().catch(()=>({ok:false,error:"bad response"}));
+    const j = await res.json().catch(() => ({ ok: false, error: "bad response" }));
     if (!j || !j.ok) { alert((j && j.error) || "Upload failed"); setDisabled(false); return; }
 
-    msgEl.textContent = "Starting…";
+    msgEl.textContent = "Processing frames...";
     const jid = j.job_id;
 
     const t = setInterval(async () => {
       const r = await fetch(`/offline/status/${jid}`);
-      const s = await r.json().catch(()=>({ok:false}));
+      const s = await r.json().catch(() => ({ ok: false }));
       if (!s.ok) return;
 
-      stateEl.textContent = s.state;
+      stateEl.textContent = s.state === "running" ? "Running" : s.state;
       const pct = Math.max(5, Math.round((s.progress || 0) * 100));
       bar.style.width = pct + "%";
       pctEl.textContent = pct + "%";
-      if (s.error) msgEl.textContent = s.error;
+      if (s.error) msgEl.textContent = "⚠️ " + s.error;
       if (s.message) msgEl.textContent = s.message;
 
       if (s.state === "done") {
         clearInterval(t);
         setDisabled(false);
+
+        badge.className = "status-indicator done";
+        stateEl.textContent = "Complete";
         results.style.display = "";
 
         if (s.video_url) videoEl.src = s.video_url;
-        if (s.csv_url)  { csvEl.href  = s.csv_url;  }
+        if (s.csv_url) { csvEl.href = s.csv_url; }
         if (s.json_url) { jsonEl.href = s.json_url; }
 
         try {
@@ -192,9 +223,11 @@
       if (s.state === "error") {
         clearInterval(t);
         setDisabled(false);
+        badge.className = "status-indicator error";
+        stateEl.textContent = "Error";
         alert("Error: " + (s.error || "unknown"));
       }
     }, 1000);
   });
-  </script>
+</script>
 {% endblock %}

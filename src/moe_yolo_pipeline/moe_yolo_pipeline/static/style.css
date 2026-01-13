@@ -19,4 +19,53 @@ h2 { margin: 0 0 10px 0; }
 ul { margin:0; padding-left:18px; }
 a { color:#86c5ff; text-decoration:none; }
 a:hover { text-decoration:underline; }
-input { background:#0b0f14; border:1px solid #2b3139; color:#e9eef1; border-radius:8px; padding:6px 10px; }
+input, select { background:#0b0f14; border:1px solid #2b3139; color:#e9eef1; border-radius:8px; padding:8px 12px; font-size:14px; }
+input:focus, select:focus { outline:none; border-color:#4f8cff; box-shadow:0 0 0 2px rgba(79,140,255,0.2); }
+label { display:flex; flex-direction:column; gap:6px; font-size:14px; color:#9fb3c8; }
+.muted-small { color:#8ea1b3; font-size:12px; }
+
+/* Progress bar */
+.progress { background:#1b2026; border-radius:999px; overflow:hidden; }
+.progress .bar { background:linear-gradient(90deg, #4f8cff 0%, #7c3aed 100%); transition:width 0.3s ease; }
+
+/* Form sections */
+.form-section { background:#0d1117; border:1px solid #21262d; border-radius:10px; padding:16px; margin-bottom:12px; }
+.form-section-title { font-size:13px; font-weight:600; color:#7d8590; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px; }
+.form-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:12px; }
+
+/* Video player improvements */
+.video-container { position:relative; background:#000; border-radius:12px; overflow:hidden; }
+.video-container video { display:block; width:100%; }
+
+/* Stats badges */
+.stat-badge { background:linear-gradient(135deg, #1f2937 0%, #111827 100%); border:1px solid #374151; border-radius:8px; padding:10px 14px; display:flex; flex-direction:column; gap:4px; }
+.stat-badge .stat-value { font-size:20px; font-weight:700; color:#fff; }
+.stat-badge .stat-label { font-size:12px; color:#9ca3af; }
+
+/* Results section */
+.results-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px; }
+.results-title { font-size:18px; font-weight:600; margin:0; }
+.results-actions { display:flex; gap:8px; }
+
+/* Status indicator */
+.status-indicator { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:500; }
+.status-indicator.running { background:rgba(59,130,246,0.15); color:#60a5fa; }
+.status-indicator.done { background:rgba(34,197,94,0.15); color:#4ade80; }
+.status-indicator.error { background:rgba(239,68,68,0.15); color:#f87171; }
+.status-indicator::before { content:''; width:6px; height:6px; border-radius:50%; background:currentColor; }
+.status-indicator.running::before { animation:pulse 1.5s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+/* Checkbox styling */
+input[type="checkbox"] { width:16px; height:16px; accent-color:#4f8cff; cursor:pointer; }
+
+/* File input */
+input[type="file"] { padding:10px; border-style:dashed; cursor:pointer; }
+input[type="file"]:hover { border-color:#4f8cff; background:#0f1318; }
+
+/* Responsive improvements */
+@media (max-width: 600px) {
+  .form-grid { grid-template-columns:1fr; }
+  .results-header { flex-direction:column; align-items:flex-start; }
+}
+

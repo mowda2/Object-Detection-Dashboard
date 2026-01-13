@@ -14,6 +14,15 @@ A local web-based analysis interface for computer vision pipelines, supporting b
   - Export results as CSV and JSON
   - Analysis library with search and playback
 
+- **Roboflow Hosted Inference** (NEW)
+
+  - Use Roboflow's cloud API for YOLO inference
+  - No local GPU required - inference happens on Roboflow servers
+  - Frame-by-frame video analysis with progress tracking
+  - Interactive viewer with detection overlays
+  - Export detections to JSON and CSV formats
+  - Configurable frame skip for usage optimization
+
 - **Live ROS 2 Mode** (Linux only)
   - Multi-camera support with auto-discovery
   - Real-time YOLO inference overlay
@@ -56,6 +65,7 @@ python -m moe_yolo_pipeline.moe_yolo_pipeline.web_video_bridge
 
 - **Main Dashboard**: http://localhost:5000
 - **Offline Analysis**: http://localhost:5000/offline
+- **Roboflow Inference**: http://localhost:5000/roboflow
 - **Analysis Library**: http://localhost:5000/library
 
 ## Project Structure
@@ -68,6 +78,8 @@ MoeWS/
 │       │   ├── web_video_bridge.py  # Flask app (ENTRY POINT)
 │       │   ├── offline_routes.py    # Offline analysis routes
 │       │   ├── offline_analyzer.py  # YOLO + tracking logic
+│       │   ├── roboflow_routes.py   # Roboflow hosted inference
+│       │   ├── roboflow_client.py   # Roboflow API client
 │       │   ├── library_db.py        # SQLite database
 │       │   ├── yolo_inference_node.py    # ROS node
 │       │   ├── templates/           # HTML templates
@@ -120,7 +132,35 @@ Activated when `rclpy` is available. Additional features:
 ```bash
 PYTHONPATH="$PWD/src"  # Required for module imports
 FLASK_DEBUG=1          # Enable debug mode (optional)
+
+# Roboflow Hosted Inference (optional)
+ROBOFLOW_API_KEY="your_api_key"    # Get from roboflow.com/settings
+ROBOFLOW_MODEL="your-model-id"     # e.g., "coco/1" or "your-project/2"
+ROBOFLOW_VERSION="1"               # Model version number
 ```
+
+### Roboflow Setup
+
+To use the Roboflow Hosted Inference feature:
+
+1. **Create a Roboflow account** at [roboflow.com](https://roboflow.com)
+2. **Get your API key** from [Settings > API Keys](https://app.roboflow.com/settings/api)
+3. **Choose a model**:
+   - Use a public model like `coco/1` (COCO-trained YOLO)
+   - Or train your own model on Roboflow and use your project ID
+4. **Set environment variables**:
+   ```bash
+   export ROBOFLOW_API_KEY="your_api_key_here"
+   export ROBOFLOW_MODEL="coco"  # or your project name
+   export ROBOFLOW_VERSION="1"
+   ```
+5. **Restart the dashboard** and navigate to `/roboflow`
+
+**Usage Notes:**
+
+- Roboflow API has usage limits based on your plan
+- Use "Frame Skip" to reduce API calls (e.g., skip 5 = process every 5th frame)
+- Results are cached locally in `runs/roboflow/` directory
 
 ## Dependencies
 
