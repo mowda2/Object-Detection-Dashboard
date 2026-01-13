@@ -6,7 +6,6 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <style>
     .header {display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-    .nav a{margin-right:10px}
     .badges{display:flex;gap:10px;align-items:center}
     .badge{background:#1e2630;border:1px solid #2c3642;border-radius:999px;padding:4px 10px;font-size:12px}
     .switch{display:inline-flex;gap:6px;align-items:center;font-size:13px}
@@ -19,20 +18,58 @@
     .muted-small{color:#8ea1b3;font-size:12px}
     .row-tight{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .pill.sel{background:#2a3442;border-color:#40516a}
+
+    /* ▼ Fancy Navigate dropdown */
+    .navmenu{position:relative;display:inline-block}
+    .navbtn{
+      display:inline-flex;align-items:center;gap:8px;
+      padding:8px 14px;border-radius:999px;font-weight:600;font-size:14px;
+      background:linear-gradient(180deg,#2a3442 0%, #1f2937 100%);
+      border:1px solid #3a4b63;color:#e7f0ff;
+      box-shadow:0 6px 22px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.04);
+      cursor:pointer; transition:transform .06s ease, box-shadow .12s ease, background .12s ease;
+    }
+    .navbtn:hover{ transform:translateY(-1px); box-shadow:0 10px 28px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.06);}
+    .navbtn:active{ transform:translateY(0); }
+    .navbtn .dot{width:8px;height:8px;background:#8dd0ff;border-radius:999px;box-shadow:0 0 0 3px rgba(141,208,255,.15)}
+    .navbtn .caret{transition:transform .15s ease; opacity:.9}
+    .navmenu.open .navbtn .caret{ transform:rotate(180deg) }
+
+    .menu{
+      position:absolute;right:0;top:44px;min-width:240px;padding:8px;
+      background:#111826;border:1px solid #2c3642;border-radius:12px;
+      box-shadow:0 20px 50px rgba(0,0,0,.55);z-index:20;
+      animation:fadeIn .12s ease;
+    }
+    .menu a{
+      display:flex;align-items:center;gap:8px;
+      padding:9px 10px;border-radius:8px;color:#dbeafe;text-decoration:none;font-size:14px;
+    }
+    .menu a:hover{ background:#223046 }
+    @keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
   </style>
 </head>
 <body>
 <div class="container">
 
-  <!-- shared header + nav -->
+  <!-- shared header + nav (Navigate only) -->
   <div class="header">
     <h1 style="margin:0">YOLO Control Panel</h1>
-    <div class="nav">
-      <a class="btn" href="/grid">Detection Multi-View</a>
-      <a class="btn" href="/grid_raw">Raw Camera Multi-View</a>
-      <a class="btn" href="/analyze">Sample Analysis</a>
-      <a class="btn" href="/offline">Offline Analysis</a>
-      <a class="btn" href="/library">Library</a> 
+    <div class="navmenu" id="navwrap">
+      <button class="navbtn" id="navbtn" aria-haspopup="true" aria-expanded="false">
+        <span class="dot" aria-hidden="true"></span>
+        Navigate
+        <svg class="caret" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M6 9l6 6 6-6" stroke="#cfe3ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <div class="menu" id="navmenu" hidden>
+        <a href="/"><span>🏠</span> Control Panel</a>
+        <a href="/grid"><span>🧩</span> Detection Multi-View</a>
+        <a href="/grid_raw"><span>🎥</span> Raw Camera Multi-View</a>
+        <a href="/offline"><span>🧪</span> Offline Analysis</a>
+        <a href="/library"><span>🗂️</span> Library</a>
+      </div>
     </div>
   </div>
 
@@ -94,6 +131,23 @@
     </div>
     <div id="logs" class="logbox">—</div>
   </section>
+
+  <!-- Dropdown toggler (shared) -->
+  <script>
+    (function(){
+      const wrap = document.getElementById('navwrap');
+      const btn  = document.getElementById('navbtn');
+      const menu = document.getElementById('navmenu');
+      if (!wrap || !btn || !menu) return;
+
+      const open = () => { wrap.classList.add('open'); btn.setAttribute('aria-expanded','true'); menu.hidden = false; };
+      const close = () => { wrap.classList.remove('open'); btn.setAttribute('aria-expanded','false'); menu.hidden = true; };
+
+      btn.addEventListener('click', (e)=>{ e.stopPropagation(); menu.hidden ? open() : close(); });
+      document.addEventListener('click', ()=> close());
+      document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') close(); });
+    })();
+  </script>
 
   <script>
   async function fetchJSON(url, opts) {

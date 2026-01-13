@@ -1,21 +1,60 @@
-# ros2 workspace
+# =============================================================================
+# .gitignore - MoeWS YOLO Dashboard
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# ROS 2 workspace
+# -----------------------------------------------------------------------------
 build/
 install/
 log/
 .colcon_ignore
 .colcon_release
 
-# python
+# -----------------------------------------------------------------------------
+# Python
+# -----------------------------------------------------------------------------
 __pycache__/
 *.py[cod]
+*$py.class
 *.egg-info/
+.eggs/
+*.egg
 .venv/
+venv/
+ENV/
+env/
 .env
 .env.*
+pip-log.txt
+pip-delete-this-directory.txt
 
-# Models/datasets 
+# -----------------------------------------------------------------------------
+# Dashboard data (analysis artifacts, uploaded videos, databases)
+# These are generated at runtime and should not be committed
+# -----------------------------------------------------------------------------
+# Job artifacts (overlay videos, CSVs, frames)
+src/moe_yolo_pipeline/moe_yolo_pipeline/jobs/
+# Uploaded media files
+src/moe_yolo_pipeline/moe_yolo_pipeline/data/media/
+# SQLite databases (contain analysis history)
+src/moe_yolo_pipeline/moe_yolo_pipeline/data/*.sqlite3
+# Legacy jobs location
+jobs/
+
+# Top-level data directory (for user videos/outputs)
+data/
+logs/
+outputs/
+
+# -----------------------------------------------------------------------------
+# Models / datasets / large files
+# -----------------------------------------------------------------------------
 *.pt
+*.pth
 *.onnx
+*.engine
+*.trt
 videos/
 datasets/
 results/
@@ -24,24 +63,50 @@ uploads/
 media/
 tmp/
 cache/
-*.log
 *.bag
+*.db3
 
-# Editors/ OS
+# -----------------------------------------------------------------------------
+# Logs
+# -----------------------------------------------------------------------------
+*.log
+logs/
+
+# -----------------------------------------------------------------------------
+# Editors / OS
+# -----------------------------------------------------------------------------
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
-# Node/js
+# -----------------------------------------------------------------------------
+# Node.js (if any frontend tooling)
+# -----------------------------------------------------------------------------
 node_modules/
 dist/
-build/
 .next/
 out/
 
+# -----------------------------------------------------------------------------
 # Tests
+# -----------------------------------------------------------------------------
 coverage/
 .pytest_cache/
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+
+# -----------------------------------------------------------------------------
+# Misc
+# -----------------------------------------------------------------------------
 src/image_pipeline/
-=1.23.0
-=4.6.0
