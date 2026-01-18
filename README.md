@@ -2,7 +2,7 @@
 
 A comprehensive web-based computer vision platform for **object detection**, **multi-object tracking**, and **calibrated speed measurement**. Supports offline video analysis, cloud-based inference via Roboflow, and real-time ROS 2 camera streams.
 
-![Dashboard](docs/screenshots/dashboard.png)
+![Speed Calibration Upload](docs/screenshots/dashboard.png)
 
 ---
 
@@ -22,6 +22,7 @@ A comprehensive web-based computer vision platform for **object detection**, **m
 ## ✨ Features
 
 ### 🎬 Offline Video Analysis
+
 - Upload video files (MP4, MOV) for batch processing
 - YOLO v11 object detection with 80+ COCO classes
 - Multi-object tracking with persistent IDs using ByteTrack
@@ -30,6 +31,7 @@ A comprehensive web-based computer vision platform for **object detection**, **m
 - Built-in analysis library with search, filtering, and playback
 
 ### 🚀 Calibrated Speed Measurement (NEW)
+
 - **Homography-based calibration** using 4 ground-plane reference points
 - Real-world speed in **km/h** with perspective correction
 - **Speed violation detection** with automatic snapshots
@@ -38,12 +40,14 @@ A comprehensive web-based computer vision platform for **object detection**, **m
 - Advanced filtering: outlier rejection, median smoothing, jump detection
 
 ### ☁️ Roboflow Cloud Inference
+
 - Use Roboflow's hosted API - **no local GPU required**
 - Frame-by-frame analysis with progress tracking
 - Works with any Roboflow model (custom or pre-trained)
 - Interactive detection viewer with bounding box overlays
 
 ### 📺 Live ROS 2 Streaming (Linux)
+
 - Multi-camera support with auto-discovery
 - Real-time YOLO inference overlay
 - Browser-based visualization
@@ -54,33 +58,37 @@ A comprehensive web-based computer vision platform for **object detection**, **m
 ## 🛠 Tech Stack
 
 ### Core Framework
-| Component | Technology | Purpose |
-|-----------|------------|---------|
-| **Web Server** | Flask 3.1 | REST API & HTML rendering |
-| **Frontend** | Jinja2 + Vanilla JS | Dynamic templates, no heavy frameworks |
-| **Database** | SQLite | Analysis library storage |
+
+| Component      | Technology          | Purpose                                |
+| -------------- | ------------------- | -------------------------------------- |
+| **Web Server** | Flask 3.1           | REST API & HTML rendering              |
+| **Frontend**   | Jinja2 + Vanilla JS | Dynamic templates, no heavy frameworks |
+| **Database**   | SQLite              | Analysis library storage               |
 
 ### Computer Vision & AI
-| Component | Technology | Purpose |
-|-----------|------------|---------|
-| **Object Detection** | [Ultralytics YOLO v11](https://github.com/ultralytics/ultralytics) | State-of-the-art real-time detection |
-| **Multi-Object Tracking** | [Supervision](https://github.com/roboflow/supervision) ByteTrack | Persistent ID tracking across frames |
-| **Image Processing** | OpenCV 4.12 | Video I/O, frame manipulation, homography |
-| **Tensor Operations** | PyTorch 2.8 | Neural network inference backend |
-| **Cloud Inference** | Roboflow API | Optional GPU-free inference |
+
+| Component                 | Technology                                                         | Purpose                                   |
+| ------------------------- | ------------------------------------------------------------------ | ----------------------------------------- |
+| **Object Detection**      | [Ultralytics YOLO v11](https://github.com/ultralytics/ultralytics) | State-of-the-art real-time detection      |
+| **Multi-Object Tracking** | [Supervision](https://github.com/roboflow/supervision) ByteTrack   | Persistent ID tracking across frames      |
+| **Image Processing**      | OpenCV 4.12                                                        | Video I/O, frame manipulation, homography |
+| **Tensor Operations**     | PyTorch 2.8                                                        | Neural network inference backend          |
+| **Cloud Inference**       | Roboflow API                                                       | Optional GPU-free inference               |
 
 ### Speed Measurement
-| Component | Technology | Purpose |
-|-----------|------------|---------|
-| **Calibration** | Homography Matrix (3×3) | Pixel-to-world coordinate transform |
-| **Smoothing** | Median + EMA filters | Noise reduction in speed estimates |
-| **Outlier Rejection** | Acceleration-based | Remove tracking errors/ID switches |
+
+| Component             | Technology              | Purpose                             |
+| --------------------- | ----------------------- | ----------------------------------- |
+| **Calibration**       | Homography Matrix (3×3) | Pixel-to-world coordinate transform |
+| **Smoothing**         | Median + EMA filters    | Noise reduction in speed estimates  |
+| **Outlier Rejection** | Acceleration-based      | Remove tracking errors/ID switches  |
 
 ### Optional Integrations
-| Component | Technology | Purpose |
-|-----------|------------|---------|
-| **ROS 2** | Humble/Iron | Live camera integration |
-| **rosbag2** | ROS 2 bags | Recorded sensor playback |
+
+| Component   | Technology  | Purpose                  |
+| ----------- | ----------- | ------------------------ |
+| **ROS 2**   | Humble/Iron | Live camera integration  |
+| **rosbag2** | ROS 2 bags  | Recorded sensor playback |
 
 ---
 
@@ -91,9 +99,9 @@ A comprehensive web-based computer vision platform for **object detection**, **m
 YOLO (You Only Look Once) is a single-shot object detector that processes the entire image in one forward pass:
 
 ```
-Input Frame (1920×1080) 
+Input Frame (1920×1080)
     ↓
-YOLO v11 Backbone (CSPDarknet) 
+YOLO v11 Backbone (CSPDarknet)
     ↓
 Feature Pyramid Network (multi-scale features)
     ↓
@@ -105,6 +113,7 @@ Output: List of detections [(class, confidence, x1, y1, x2, y2), ...]
 ```
 
 **Key Parameters:**
+
 - `min_conf`: Minimum confidence threshold (default: 0.25)
 - `max_det_per_frame`: Maximum detections per frame (default: 50)
 - `class_filter`: Filter specific COCO classes (e.g., cars, trucks)
@@ -126,6 +135,7 @@ Output: Detections with track_id
 ```
 
 **Key Parameters:**
+
 - `track_thresh`: Minimum confidence to start new track (default: 0.25)
 - `match_thresh`: IOU threshold for matching (default: 0.8)
 - `track_buffer`: Frames to keep lost tracks (default: 30)
@@ -133,6 +143,7 @@ Output: Detections with track_id
 ### 3. Speed Estimation
 
 #### Basic Mode (Offline Analyzer)
+
 Simple pixel-displacement speed using meters-per-pixel (MPP):
 
 ```
@@ -140,6 +151,7 @@ Speed = (pixel_distance × MPP × FPS) / time_window
 ```
 
 #### Calibrated Mode (Speed Analyzer)
+
 Uses homography for perspective-correct world coordinates:
 
 ```
@@ -153,6 +165,7 @@ For each tracked object:
 ```
 
 **Smoothing Pipeline:**
+
 ```
 Raw Speed → Outlier Rejection → Median Filter → EMA Smoothing → Final Speed
               (50 km/h/s max)    (5-sample)      (α=0.3)
@@ -227,13 +240,13 @@ python -m moe_yolo_pipeline.moe_yolo_pipeline.web_video_bridge
 
 ### 4. Open in Browser
 
-| Page | URL | Description |
-|------|-----|-------------|
-| **Dashboard** | http://localhost:5000 | Main landing page |
-| **Offline Analysis** | http://localhost:5000/offline | Upload & analyze videos |
-| **Speed (Calibrated)** | http://localhost:5000/speed | Homography-based speed |
-| **Roboflow** | http://localhost:5000/roboflow | Cloud inference |
-| **Library** | http://localhost:5000/library | Past analyses |
+| Page                   | URL                            | Description             |
+| ---------------------- | ------------------------------ | ----------------------- |
+| **Dashboard**          | http://localhost:5000          | Main landing page       |
+| **Offline Analysis**   | http://localhost:5000/offline  | Upload & analyze videos |
+| **Speed (Calibrated)** | http://localhost:5000/speed    | Homography-based speed  |
+| **Roboflow**           | http://localhost:5000/roboflow | Cloud inference         |
+| **Library**            | http://localhost:5000/library  | Past analyses           |
 
 ---
 
@@ -265,6 +278,14 @@ python -m moe_yolo_pipeline.moe_yolo_pipeline.web_video_bridge
    - Enable motion trails
 5. Click "Run Analysis"
 6. View results: speeds in km/h, violation gallery, per-track stats
+
+**Speed Analysis Results:**
+
+![Speed Analysis Video Output](docs/screenshots/speed-analysis.png)
+*Real-time vehicle tracking with speed overlays*
+
+![Per-Track Statistics](docs/screenshots/speed-statistics.png)
+*Detailed per-track statistics with max/avg speeds and settings configuration*
 
 ### Roboflow Cloud Inference
 
@@ -324,29 +345,32 @@ MoeWS/
 ### Environment Variables
 
 #### Detection & Tracking
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MOE_TRACK_MIN_CONF` | 0.0 | Extra confidence filter |
-| `MOE_TRACK_MIN_BOX_AREA` | 0 | Minimum bbox area (px²) |
-| `MOE_TRACK_CLASSES` | "" | Class filter (comma-separated IDs) |
-| `MOE_TRACK_BUFFER` | 30 | ByteTrack lost track buffer |
-| `MOE_TRACK_THRESH` | 0.25 | Track activation threshold |
-| `MOE_SHOW_TRAILS` | false | Enable motion trails |
+
+| Variable                 | Default | Description                        |
+| ------------------------ | ------- | ---------------------------------- |
+| `MOE_TRACK_MIN_CONF`     | 0.0     | Extra confidence filter            |
+| `MOE_TRACK_MIN_BOX_AREA` | 0       | Minimum bbox area (px²)            |
+| `MOE_TRACK_CLASSES`      | ""      | Class filter (comma-separated IDs) |
+| `MOE_TRACK_BUFFER`       | 30      | ByteTrack lost track buffer        |
+| `MOE_TRACK_THRESH`       | 0.25    | Track activation threshold         |
+| `MOE_SHOW_TRAILS`        | false   | Enable motion trails               |
 
 #### Speed Analysis
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MOE_SPEED_MAX_KPH` | 160.0 | Maximum plausible speed |
-| `MOE_SPEED_WINDOW_S` | 0.7 | Smoothing window (seconds) |
-| `MOE_SPEED_MIN_DT_S` | 0.1 | Minimum time delta |
-| `MOE_SPEED_CONF` | 0.25 | Detection confidence |
+
+| Variable             | Default | Description                |
+| -------------------- | ------- | -------------------------- |
+| `MOE_SPEED_MAX_KPH`  | 160.0   | Maximum plausible speed    |
+| `MOE_SPEED_WINDOW_S` | 0.7     | Smoothing window (seconds) |
+| `MOE_SPEED_MIN_DT_S` | 0.1     | Minimum time delta         |
+| `MOE_SPEED_CONF`     | 0.25    | Detection confidence       |
 
 #### Roboflow
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `ROBOFLOW_API_KEY` | Yes | Your Roboflow API key |
-| `ROBOFLOW_MODEL` | Yes | Model ID (e.g., "coco/1") |
-| `ROBOFLOW_CONFIDENCE` | No | Confidence threshold (0.4) |
+
+| Variable              | Required | Description                |
+| --------------------- | -------- | -------------------------- |
+| `ROBOFLOW_API_KEY`    | Yes      | Your Roboflow API key      |
+| `ROBOFLOW_MODEL`      | Yes      | Model ID (e.g., "coco/1")  |
+| `ROBOFLOW_CONFIDENCE` | No       | Confidence threshold (0.4) |
 
 ### Speed Analysis Settings (UI)
 
@@ -365,33 +389,33 @@ All configurable via the web interface:
 
 ### Offline Analysis Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/offline` | Analysis upload page |
-| POST | `/offline/upload` | Upload video for analysis |
-| GET | `/offline/status/<job_id>` | Job status & progress |
-| GET | `/offline/results/<job_id>` | Analysis results page |
-| GET | `/offline/artifact/<job_id>/<file>` | Download artifacts |
+| Method | Endpoint                            | Description               |
+| ------ | ----------------------------------- | ------------------------- |
+| GET    | `/offline`                          | Analysis upload page      |
+| POST   | `/offline/upload`                   | Upload video for analysis |
+| GET    | `/offline/status/<job_id>`          | Job status & progress     |
+| GET    | `/offline/results/<job_id>`         | Analysis results page     |
+| GET    | `/offline/artifact/<job_id>/<file>` | Download artifacts        |
 
 ### Speed Analysis Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/speed` | Upload & settings page |
-| POST | `/speed/upload` | Upload video |
-| GET | `/speed/calibrate/<job_id>` | Calibration page |
-| POST | `/speed/calibrate/<job_id>` | Save calibration |
-| GET | `/speed/run/<job_id>` | Run analysis |
-| GET | `/speed/results/<job_id>` | Results page |
-| GET | `/speed/artifact/<job_id>/<file>` | Download artifacts |
+| Method | Endpoint                          | Description            |
+| ------ | --------------------------------- | ---------------------- |
+| GET    | `/speed`                          | Upload & settings page |
+| POST   | `/speed/upload`                   | Upload video           |
+| GET    | `/speed/calibrate/<job_id>`       | Calibration page       |
+| POST   | `/speed/calibrate/<job_id>`       | Save calibration       |
+| GET    | `/speed/run/<job_id>`             | Run analysis           |
+| GET    | `/speed/results/<job_id>`         | Results page           |
+| GET    | `/speed/artifact/<job_id>/<file>` | Download artifacts     |
 
 ### Library Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/library` | Analysis library page |
-| GET | `/library/search` | Search analyses |
-| DELETE | `/library/<job_id>` | Delete analysis |
+| Method | Endpoint            | Description           |
+| ------ | ------------------- | --------------------- |
+| GET    | `/library`          | Analysis library page |
+| GET    | `/library/search`   | Search analyses       |
+| DELETE | `/library/<job_id>` | Delete analysis       |
 
 ---
 
