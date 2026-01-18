@@ -266,24 +266,7 @@
       <div id="logs" class="logbox">—</div>
     </section>
 
-    <!-- Dropdown toggler (shared) -->
-    <script>
-      (function () {
-        const wrap = document.getElementById('navwrap');
-        const btn = document.getElementById('navbtn');
-        const menu = document.getElementById('navmenu');
-        if (!wrap || !btn || !menu) return;
-
-        const open = () => { wrap.classList.add('open'); btn.setAttribute('aria-expanded', 'true'); menu.hidden = false; };
-        const close = () => { wrap.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); menu.hidden = true; };
-
-        btn.addEventListener('click', (e) => { e.stopPropagation(); menu.hidden ? open() : close(); });
-        document.addEventListener('click', () => close());
-        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
-      })();
-    </script>
-
-    <script>
+    <section class="card">
       async function fetchJSON(url, opts) {
         const r = await fetch(url, opts || {});
         if (!r.ok) throw new Error(await r.text());
@@ -412,6 +395,23 @@
     </script>
     {% endblock %}
   </div>
+
+  <!-- Dropdown toggler (shared by all pages extending this template) -->
+  <script>
+    (function () {
+      const wrap = document.getElementById('navwrap');
+      const btn = document.getElementById('navbtn');
+      const menu = document.getElementById('navmenu');
+      if (!wrap || !btn || !menu) return;
+
+      const open = () => { wrap.classList.add('open'); btn.setAttribute('aria-expanded', 'true'); menu.hidden = false; };
+      const close = () => { wrap.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); menu.hidden = true; };
+
+      btn.addEventListener('click', (e) => { e.stopPropagation(); menu.hidden ? open() : close(); });
+      document.addEventListener('click', () => close());
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+    })();
+  </script>
 </body>
 
 </html>

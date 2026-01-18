@@ -125,18 +125,6 @@ export ROBOFLOW_MODEL="your-workspace/your-model"
 
 <script>
   (function () {
-    // Enable nav dropdown on this page
-    const wrap = document.getElementById('navwrap');
-    const btn = document.getElementById('navbtn');
-    const menu = document.getElementById('navmenu');
-    if (btn && menu) {
-      const open = () => { wrap && wrap.classList.add('open'); menu.hidden = false; btn.setAttribute('aria-expanded', 'true'); };
-      const close = () => { wrap && wrap.classList.remove('open'); menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
-      btn.addEventListener('click', (e) => { e.stopPropagation(); menu.hidden ? open() : close(); });
-      document.addEventListener('click', close);
-      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
-    }
-
     {% if is_configured %}
     const form = document.getElementById('rf-upload-form');
     const fileInput = document.getElementById('rf-file');

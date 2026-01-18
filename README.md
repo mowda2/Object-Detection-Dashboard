@@ -282,10 +282,10 @@ python -m moe_yolo_pipeline.moe_yolo_pipeline.web_video_bridge
 **Speed Analysis Results:**
 
 ![Speed Analysis Video Output](docs/screenshots/speed-analysis.png)
-*Real-time vehicle tracking with speed overlays*
+_Real-time vehicle tracking with speed overlays_
 
 ![Per-Track Statistics](docs/screenshots/speed-statistics.png)
-*Detailed per-track statistics with max/avg speeds and settings configuration*
+_Detailed per-track statistics with max/avg speeds and settings configuration_
 
 ### Roboflow Cloud Inference
 

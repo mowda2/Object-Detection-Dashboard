@@ -101,21 +101,6 @@
 </section>
 
 <script>
-  /* --- Ensure the header "Navigate ▾" works on pages that extend index.html --- */
-  (function () {
-    const wrap = document.getElementById('navwrap') || document.querySelector('.navmenu');
-    const btn = document.getElementById('navbtn');
-    const menu = document.getElementById('navmenu');
-    if (!btn || !menu) return;
-
-    const open = () => { if (wrap) wrap.classList.add('open'); menu.hidden = false; btn.setAttribute('aria-expanded', 'true'); };
-    const close = () => { if (wrap) wrap.classList.remove('open'); menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
-
-    btn.addEventListener('click', (e) => { e.stopPropagation(); menu.hidden ? open() : close(); });
-    document.addEventListener('click', () => close());
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
-  })();
-
   const form = document.getElementById("offline-form");
   const submitBtn = document.getElementById("btn-analyze");
   const statusBox = document.getElementById("status");

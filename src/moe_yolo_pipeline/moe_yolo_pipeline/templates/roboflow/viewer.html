@@ -84,18 +84,6 @@
 
 <script>
   (function () {
-    // Enable nav dropdown
-    const wrap = document.getElementById('navwrap');
-    const btn = document.getElementById('navbtn');
-    const menu = document.getElementById('navmenu');
-    if (btn && menu) {
-      const open = () => { wrap && wrap.classList.add('open'); menu.hidden = false; btn.setAttribute('aria-expanded', 'true'); };
-      const close = () => { wrap && wrap.classList.remove('open'); menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
-      btn.addEventListener('click', (e) => { e.stopPropagation(); menu.hidden ? open() : close(); });
-      document.addEventListener('click', close);
-      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
-    }
-
     const jobId = "{{ job_id }}";
     const frameImg = document.getElementById('rf-frame-img');
     const overlay = document.getElementById('rf-overlay');
