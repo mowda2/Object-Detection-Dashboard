@@ -41,6 +41,8 @@ except Exception:
 from .offline_routes import offline_bp
 # Import Roboflow hosted inference blueprint (optional page at /roboflow)
 from .roboflow_routes import roboflow_bp
+# Import Speed (calibrated) blueprint (optional page at /speed)
+from .speed_routes import speed_bp
 
 # ------- Minimal adapter so code can call ROS.* safely on macOS -------
 class _FakeROS:
@@ -68,6 +70,8 @@ app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024 * 1024  # 2GB
 app.register_blueprint(offline_bp)
 # register Roboflow hosted inference routes
 app.register_blueprint(roboflow_bp)
+# register Speed (calibrated) routes
+app.register_blueprint(speed_bp)
 
 JOBS_DIR = os.path.join(HERE, "jobs")
 os.makedirs(JOBS_DIR, exist_ok=True)

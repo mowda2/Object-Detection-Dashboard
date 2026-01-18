@@ -1,0 +1,280 @@
+{% extends "index.html" %}
+{% block content %}
+<section class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+    <div>
+      <h2 style="margin:0">🚗 Speed Analysis Results</h2>
+      <p class="muted-small" style="margin:4px 0 0 0">Job: {{ job_id }}</p>
+    </div>
+    <div style="display:flex;gap:8px">
+      <a href="{{ url_for('speed.speed_artifact', job_id=job_id, filename='tracks_v1.csv') }}" class="btn">📥 CSV</a>
+      <a href="{{ url_for('speed.speed_artifact', job_id=job_id, filename='summary.json') }}" class="btn" download>📥
+        JSON</a>
+      <a href="{{ url_for('speed.speed_calibrate', job_id=job_id) }}" class="btn">🎯 Calibration</a>
+      <a href="{{ url_for('speed.speed_index') }}" class="btn">← Back</a>
+    </div>
+  </div>
+</section>
+
+<!-- Stats Summary -->
+<section class="card">
+  <h3>Analysis Summary</h3>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px">
+    <div class="stat-badge">
+      <span class="stat-value">{{ summary.unique_tracks }}</span>
+      <span class="stat-label">Unique Tracks</span>
+    </div>
+    <div class="stat-badge">
+      <span class="stat-value">{{ summary.overall_max_kph|round(1) }} km/h</span>
+      <span class="stat-label">Max Speed</span>
+    </div>
+    <div class="stat-badge">
+      <span class="stat-value">{{ summary.frames_processed }}</span>
+      <span class="stat-label">Frames Processed</span>
+    </div>
+    <div class="stat-badge">
+      <span class="stat-value">{{ summary.fps|round(1) }}</span>
+      <span class="stat-label">Input FPS</span>
+    </div>
+    {% if summary.total_rejected_updates %}
+    <div class="stat-badge" style="border-color:#f0883e">
+      <span class="stat-value" style="color:#f0883e">{{ summary.total_rejected_updates }}</span>
+      <span class="stat-label">Rejected Updates</span>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+<!-- Video Player -->
+<section class="card" style="padding:0;overflow:hidden">
+  <div style="background:#000;position:relative">
+    <video controls style="width:100%;display:block" preload="metadata">
+      <source src="{{ url_for('speed.speed_artifact', job_id=job_id, filename='output.mp4') }}" type="video/mp4">
+      Your browser does not support the video tag.
+    </video>
+  </div>
+  <div style="padding:12px;background:#161b22">
+    <p class="muted-small" style="margin:0">
+      Annotated output video with speed overlays. Use video controls to play/pause.
+    </p>
+  </div>
+</section>
+
+<!-- Speed Violations Section -->
+{% if summary.violations and summary.violations.enabled %}
+{% set border_color = '#f85149' if summary.violations.count > 0 else '#238636' %}
+<section class="card" style="border:1px solid {{ border_color }}">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+    <div>
+      {% set heading_color = '#f85149' if summary.violations.count > 0 else '#238636' %}
+      <h3 style="margin:0;color:{{ heading_color }}">
+        🚨 Speed Violations
+      </h3>
+      <p class="muted-small" style="margin:4px 0 0 0">
+        Threshold: {{ summary.violations.threshold_kmh }} km/h | Mode: {{ summary.violations.capture_mode }}
+      </p>
+    </div>
+    {% if summary.violations.count > 0 %}
+    <div style="display:flex;gap:8px">
+      <a href="{{ url_for('speed.speed_artifact', job_id=job_id, filename='violations/violations.json') }}" class="btn"
+        download>📥 JSON</a>
+      <a href="{{ url_for('speed.speed_artifact', job_id=job_id, filename='violations/violations.csv') }}"
+        class="btn">📥 CSV</a>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if summary.violations.count == 0 %}
+  <div style="text-align:center;padding:24px;background:#0d1117;border-radius:8px">
+    <span style="font-size:32px">✅</span>
+    <p style="margin:12px 0 0 0;color:#8b949e">No speed violations detected</p>
+  </div>
+  {% else %}
+  <div class="stat-badge" style="border-color:#f85149;margin-bottom:16px">
+    <span class="stat-value" style="color:#f85149">{{ summary.violations.count }}</span>
+    <span class="stat-label">Violations Detected</span>
+  </div>
+
+  <!-- Violations Gallery -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));gap:16px">
+    {% for event in violations or [] %}
+    <div style="background:#161b22;border-radius:8px;overflow:hidden;border:1px solid #30363d">
+      {% if event.image_crop %}
+      <a href="{{ url_for('speed.speed_artifact', job_id=job_id, filename=event.image_full if event.image_full else event.image_crop) }}"
+        target="_blank" title="View full frame">
+        <img src="{{ url_for('speed.speed_artifact', job_id=job_id, filename=event.image_crop) }}"
+          style="width:100%;height:140px;object-fit:cover;display:block" alt="Violation #{{ event.event_id }}">
+      </a>
+      {% elif event.image_full %}
+      <a href="{{ url_for('speed.speed_artifact', job_id=job_id, filename=event.image_full) }}" target="_blank"
+        title="View full frame">
+        <img src="{{ url_for('speed.speed_artifact', job_id=job_id, filename=event.image_full) }}"
+          style="width:100%;height:140px;object-fit:cover;display:block" alt="Violation #{{ event.event_id }}">
+      </a>
+      {% else %}
+      <div
+        style="width:100%;height:140px;background:#0d1117;display:flex;align-items:center;justify-content:center;color:#8b949e">
+        No image
+      </div>
+      {% endif %}
+      <div style="padding:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-weight:600;color:#f85149">{{ event.speed_kmh }} km/h</span>
+          <span class="muted-small">#{{ event.event_id }}</span>
+        </div>
+        <div style="font-size:12px;color:#8b949e">
+          <div>Track: <span style="color:#c9d1d9">{{ event.track_id }}</span> ({{ event.class_name }})</div>
+          <div>Time: <span style="color:#c9d1d9">{{ "%.2f"|format(event.timestamp_s) }}s</span></div>
+          <div>Frame: <span style="color:#c9d1d9">{{ event.frame_idx }}</span></div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+
+<!-- Per-Track Details -->
+{% if summary.per_track and summary.per_track|length > 0 %}
+<section class="card">
+  <h3>Per-Track Statistics</h3>
+  <div style="overflow-x:auto;margin-top:12px">
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="border-bottom:1px solid #30363d">
+          <th style="padding:8px;text-align:left;color:#8b949e">Track ID</th>
+          <th style="padding:8px;text-align:left;color:#8b949e">Class</th>
+          <th style="padding:8px;text-align:right;color:#8b949e">Avg Speed</th>
+          <th style="padding:8px;text-align:right;color:#8b949e">Max Speed</th>
+          <th style="padding:8px;text-align:right;color:#8b949e">Frames</th>
+          <th style="padding:8px;text-align:right;color:#8b949e">Rejected</th>
+          <th style="padding:8px;text-align:right;color:#8b949e">Start</th>
+          <th style="padding:8px;text-align:right;color:#8b949e">End</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for tid, stats in summary.per_track.items()|sort(attribute='1.max_kph', reverse=true) %}
+        <tr style="border-bottom:1px solid #21262d">
+          <td style="padding:8px;font-weight:600">#{{ tid }}</td>
+          <td style="padding:8px">{{ stats.class }}</td>
+          <td style="padding:8px;text-align:right">{{ stats.avg_kph|round(1) }} km/h</td>
+          <td {% set max_kph_color='#f0883e' if stats.max_kph> 80 else ('#58a6ff' if stats.max_kph > 50 else '#8b949e')
+            %}
+            style="padding:8px;text-align:right;color:{{ max_kph_color }}">
+            {{ stats.max_kph|round(1) }} km/h
+          </td>
+          <td style="padding:8px;text-align:right">{{ stats.frames_seen }}</td>
+          <td {% set rejected_color='#f0883e' if stats.rejected_updates> 0 else '#8b949e' %}
+            style="padding:8px;text-align:right;color:{{ rejected_color }}">
+            {{ stats.rejected_updates|default(0) }}
+          </td>
+          <td style="padding:8px;text-align:right;color:#8b949e">{{ stats.start_frame }}</td>
+          <td style="padding:8px;text-align:right;color:#8b949e">{{ stats.end_frame }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<!-- Settings Used (Expanded) -->
+<section class="card" style="background:#0d1117">
+  <h3>Settings Used</h3>
+  {% if summary.settings_used %}
+  <details open style="margin-top:12px">
+    <summary style="cursor:pointer;color:#58a6ff;user-select:none">Detection & Tracking</summary>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:8px;margin-top:8px">
+      <div><span class="muted-small">Min Confidence:</span> {{ summary.settings_used.min_conf }}</div>
+      <div><span class="muted-small">Max Det/Frame:</span> {{ summary.settings_used.max_det_per_frame }}</div>
+      <div><span class="muted-small">Min Box Area:</span> {{ summary.settings_used.min_box_area }} px²</div>
+      <div><span class="muted-small">Track Threshold:</span> {{ summary.settings_used.track_thresh }}</div>
+      <div><span class="muted-small">Match Threshold:</span> {{ summary.settings_used.match_thresh }}</div>
+      <div><span class="muted-small">Track Buffer:</span> {{ summary.settings_used.track_buffer }} frames</div>
+    </div>
+  </details>
+  <details style="margin-top:12px">
+    <summary style="cursor:pointer;color:#58a6ff;user-select:none">Speed Calculation</summary>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:8px;margin-top:8px">
+      <div><span class="muted-small">Max Speed:</span> {{ summary.settings_used.max_kph }} km/h</div>
+      <div><span class="muted-small">Smoothing Window:</span> {{ summary.settings_used.smoothing_window_s }}s</div>
+      <div><span class="muted-small">Min dt:</span> {{ summary.settings_used.min_dt_s }}s</div>
+      <div><span class="muted-small">Outlier Reject:</span> {{ summary.settings_used.outlier_reject_kph_per_s }} km/h/s
+      </div>
+      <div><span class="muted-small">Median Filter N:</span> {{ summary.settings_used.median_filter_n }}</div>
+      <div><span class="muted-small">Jump Reject:</span> {{ summary.settings_used.jump_reject_m }}m</div>
+    </div>
+  </details>
+  <details style="margin-top:12px">
+    <summary style="cursor:pointer;color:#58a6ff;user-select:none">Performance</summary>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:8px;margin-top:8px">
+      <div><span class="muted-small">Frame Skip:</span> {{ summary.settings_used.frame_skip }}</div>
+      <div><span class="muted-small">Resize Width:</span> {% if summary.settings_used.resize_width > 0 %}{{
+        summary.settings_used.resize_width }}px{% else %}Original{% endif %}</div>
+      <div><span class="muted-small">Output FPS:</span> {{ summary.output_fps|round(1) }}</div>
+    </div>
+  </details>
+  <details style="margin-top:12px">
+    <summary style="cursor:pointer;color:#58a6ff;user-select:none">Trail Visualization</summary>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:8px;margin-top:8px">
+      <div><span class="muted-small">Trails Enabled:</span>
+        {% if summary.settings_used.enable_trails %}
+        <span style="color:#238636">✓ Yes</span>
+        {% else %}
+        <span style="color:#8b949e">✗ No</span>
+        {% endif %}
+      </div>
+      {% if summary.settings_used.enable_trails %}
+      <div><span class="muted-small">Duration:</span> {{ summary.settings_used.trail_seconds }}s</div>
+      <div><span class="muted-small">Max Points:</span> {{ summary.settings_used.trail_max_points }}</div>
+      <div><span class="muted-small">Stride:</span> {{ summary.settings_used.trail_stride }}</div>
+      <div><span class="muted-small">Thickness:</span> {{ summary.settings_used.trail_thickness }}px</div>
+      <div><span class="muted-small">Alpha:</span> {{ summary.settings_used.trail_alpha }}</div>
+      <div><span class="muted-small">Fade:</span> {% if summary.settings_used.trail_fade %}Yes{% else %}No{% endif %}
+      </div>
+      <div><span class="muted-small">Anchor:</span> {{ summary.settings_used.trail_anchor }}</div>
+      {% endif %}
+    </div>
+  </details>
+  <details style="margin-top:12px">
+    <summary style="cursor:pointer;color:#58a6ff;user-select:none">Violation Detection</summary>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:8px;margin-top:8px">
+      <div><span class="muted-small">Violations Enabled:</span>
+        {% if summary.settings_used.violation_enabled %}
+        <span style="color:#f85149">✓ Yes</span>
+        {% else %}
+        <span style="color:#8b949e">✗ No</span>
+        {% endif %}
+      </div>
+      {% if summary.settings_used.violation_enabled %}
+      <div><span class="muted-small">Threshold:</span> {{ summary.settings_used.violation_speed_kmh }} km/h</div>
+      <div><span class="muted-small">Min Duration:</span> {{ summary.settings_used.violation_min_seconds }}s</div>
+      <div><span class="muted-small">Cooldown:</span> {{ summary.settings_used.violation_cooldown_seconds }}s</div>
+      <div><span class="muted-small">Capture Mode:</span> {{ summary.settings_used.violation_capture_mode }}</div>
+      <div><span class="muted-small">Save Full:</span> {% if summary.settings_used.violation_save_full_frame %}Yes{%
+        else %}No{% endif %}</div>
+      <div><span class="muted-small">Save Crop:</span> {% if summary.settings_used.violation_save_crop %}Yes{% else
+        %}No{% endif %}</div>
+      <div><span class="muted-small">Crop Padding:</span> {{ summary.settings_used.violation_crop_padding_px }}px</div>
+      {% endif %}
+    </div>
+  </details>
+  {% else %}
+  <!-- Legacy format -->
+  <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px">
+    <div><span class="muted-small">Max Speed:</span> {{ summary.config.max_kph }} km/h</div>
+    <div><span class="muted-small">Window:</span> {{ summary.config.window_s }}s</div>
+    <div><span class="muted-small">Min dt:</span> {{ summary.config.min_dt_s }}s</div>
+    <div><span class="muted-small">Confidence:</span> {{ summary.config.conf_threshold }}</div>
+  </div>
+  {% endif %}
+
+  <p class="muted-small" style="margin-top:12px">
+    Settings fingerprint: <code>{{ summary.settings_fingerprint|default('N/A') }}</code>
+    {% if summary.source_page %}
+    <br>Source: <code>{{ summary.source_page }}</code> | Type: <code>{{ summary.analysis_type }}</code>
+    {% endif %}
+  </p>
+</section>
+{% endblock %}

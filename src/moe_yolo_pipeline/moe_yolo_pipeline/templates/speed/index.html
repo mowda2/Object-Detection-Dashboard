@@ -1,0 +1,305 @@
+{% extends "index.html" %}
+{% block content %}
+<section class="card">
+  <h2>🚗 Speed (Calibrated)</h2>
+  <p class="muted-small" style="margin-bottom:16px">
+    Measure vehicle speeds using homography-based calibration.<br>
+    Calibration uses 4 road-plane points and real-world meters.
+  </p>
+
+  <!-- Instructions Card -->
+  <div class="card" style="background:#0d1117;border:1px solid #30363d;margin-bottom:16px">
+    <h3 style="margin:0 0 10px 0;font-size:14px;color:#8b949e">📋 How It Works</h3>
+    <ol style="margin:0;padding-left:20px;color:#c9d1d9;font-size:13px;line-height:1.8">
+      <li><strong>Upload</strong> a video file (MP4 or MOV, max 500MB)</li>
+      <li><strong>Calibrate</strong> by selecting 4 points on the road surface and entering their real-world coordinates
+        in meters</li>
+      <li><strong>Analyze</strong> to compute calibrated vehicle speeds with tracking</li>
+    </ol>
+  </div>
+
+  {% if error %}
+  <div class="card" style="background:#1a1520;border:1px solid #f85149;margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="color:#f85149;font-size:20px">⚠</span>
+      <strong style="color:#f85149">{{ error }}</strong>
+    </div>
+  </div>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h3>Upload Video for Calibration</h3>
+
+  <form action="{{ url_for('speed.speed_upload') }}" method="post" enctype="multipart/form-data"
+    style="display:flex;flex-direction:column;gap:16px">
+
+    <div>
+      <label style="display:block;margin-bottom:6px">Video File</label>
+      <input type="file" name="file" accept=".mp4,.mov" required
+        style="width:100%;padding:10px;background:#161b22;border:1px solid #30363d;border-radius:8px;color:#c9d1d9">
+      <p class="muted-small" style="margin-top:4px">Supported: MP4, MOV (max 500MB)</p>
+    </div>
+
+    <!-- Advanced Settings (collapsible) -->
+    <details style="background:#0d1117;border:1px solid #30363d;border-radius:10px;padding:12px">
+      <summary style="cursor:pointer;font-weight:600;color:#58a6ff;user-select:none">
+        ⚙️ Advanced Settings (optional)
+      </summary>
+
+      <div style="margin-top:16px">
+        <!-- Detection Settings -->
+        <div style="margin-bottom:20px">
+          <h4 style="color:#8b949e;margin:0 0 12px 0;font-size:13px;border-bottom:1px solid #21262d;padding-bottom:6px">
+            🔍 Detection Settings
+          </h4>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:12px">
+            <label>
+              <span class="muted-small">Min Confidence</span>
+              <input type="number" name="min_conf" step="0.01" min="0.1" max="0.99" value="{{ defaults.min_conf }}"
+                style="width:100%;margin-top:4px">
+            </label>
+            <label>
+              <span class="muted-small">Max Detections/Frame</span>
+              <input type="number" name="max_det_per_frame" min="1" max="200" value="{{ defaults.max_det_per_frame }}"
+                style="width:100%;margin-top:4px">
+            </label>
+            <label>
+              <span class="muted-small">Min Box Area (px²)</span>
+              <input type="number" name="min_box_area" min="0" value="{{ defaults.min_box_area }}"
+                style="width:100%;margin-top:4px">
+            </label>
+            <label>
+              <span class="muted-small">Class Filter (IDs)</span>
+              <input type="text" name="class_filter" placeholder="e.g., 2,5,7" value="{{ defaults.class_filter }}"
+                style="width:100%;margin-top:4px">
+              <span class="muted-small" style="font-size:10px">Empty = all classes</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Tracking Settings -->
+        <div style="margin-bottom:20px">
+          <h4 style="color:#8b949e;margin:0 0 12px 0;font-size:13px;border-bottom:1px solid #21262d;padding-bottom:6px">
+            🎯 Tracking Settings (ByteTrack)
+          </h4>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:12px">
+            <label>
+              <span class="muted-small">Track Threshold</span>
+              <input type="number" name="track_thresh" step="0.01" min="0.1" max="0.9"
+                value="{{ defaults.track_thresh }}" style="width:100%;margin-top:4px">
+            </label>
+            <label>
+              <span class="muted-small">Match Threshold</span>
+              <input type="number" name="match_thresh" step="0.01" min="0.1" max="0.99"
+                value="{{ defaults.match_thresh }}" style="width:100%;margin-top:4px">
+            </label>
+            <label>
+              <span class="muted-small">Track Buffer (frames)</span>
+              <input type="number" name="track_buffer" min="1" max="120" value="{{ defaults.track_buffer }}"
+                style="width:100%;margin-top:4px">
+            </label>
+          </div>
+        </div>
+
+        <!-- Speed Settings -->
+        <div style="margin-bottom:20px">
+          <h4 style="color:#8b949e;margin:0 0 12px 0;font-size:13px;border-bottom:1px solid #21262d;padding-bottom:6px">
+            📏 Speed Calculation Settings
+          </h4>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:12px">
+            <label>
+              <span class="muted-small">Smoothing Window (s)</span>
+              <input type="number" name="smoothing_window_s" step="0.1" min="0.1" max="3.0"
+                value="{{ defaults.smoothing_window_s }}" style="width:100%;margin-top:4px">
+            </label>
+            <label>
+              <span class="muted-small">Max Speed (km/h)</span>
+              <input type="number" name="max_kph" min="10" max="300" value="{{ defaults.max_kph }}"
+                style="width:100%;margin-top:4px">
+            </label>
+            <label>
+              <span class="muted-small">Min dt (s)</span>
+              <input type="number" name="min_dt_s" step="0.01" min="0.01" max="1.0" value="{{ defaults.min_dt_s }}"
+                style="width:100%;margin-top:4px">
+            </label>
+            <label>
+              <span class="muted-small">Outlier Reject (km/h/s)</span>
+              <input type="number" name="outlier_reject_kph_per_s" min="10" max="200"
+                value="{{ defaults.outlier_reject_kph_per_s }}" style="width:100%;margin-top:4px">
+              <span class="muted-small" style="font-size:10px">Max acceleration</span>
+            </label>
+            <label>
+              <span class="muted-small">Median Filter N</span>
+              <input type="number" name="median_filter_n" min="0" max="15" value="{{ defaults.median_filter_n }}"
+                style="width:100%;margin-top:4px">
+              <span class="muted-small" style="font-size:10px">0 = disabled</span>
+            </label>
+            <label>
+              <span class="muted-small">Jump Reject (m)</span>
+              <input type="number" name="jump_reject_m" min="1" max="50" value="{{ defaults.jump_reject_m }}"
+                style="width:100%;margin-top:4px">
+            </label>
+          </div>
+        </div>
+
+        <!-- Performance Settings -->
+        <div style="margin-bottom:20px">
+          <h4 style="color:#8b949e;margin:0 0 12px 0;font-size:13px;border-bottom:1px solid #21262d;padding-bottom:6px">
+            ⚡ Performance Settings
+          </h4>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:12px">
+            <label>
+              <span class="muted-small">Frame Skip</span>
+              <input type="number" name="frame_skip" min="1" max="10" value="{{ defaults.frame_skip }}"
+                style="width:100%;margin-top:4px">
+              <span class="muted-small" style="font-size:10px">Process every Nth frame</span>
+            </label>
+            <label>
+              <span class="muted-small">Resize Width (px)</span>
+              <input type="number" name="resize_width" min="0" max="1920" value="{{ defaults.resize_width }}"
+                style="width:100%;margin-top:4px">
+              <span class="muted-small" style="font-size:10px">0 = original size</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Trail Visualization Settings -->
+        <div>
+          <h4 style="color:#8b949e;margin:0 0 12px 0;font-size:13px;border-bottom:1px solid #21262d;padding-bottom:6px">
+            🎨 Trail Visualization (Motion Trails)
+          </h4>
+          <p class="muted-small" style="margin:0 0 12px 0;font-size:11px">
+            Draw motion history trails behind tracked objects. Disabled by default.
+          </p>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:12px">
+            <label style="display:flex;align-items:center;gap:8px">
+              <input type="checkbox" name="enable_trails" {% if defaults.enable_trails %}checked{% endif %}>
+              <span class="muted-small">Enable Trails</span>
+            </label>
+            <label>
+              <span class="muted-small">Trail Duration (s)</span>
+              <input type="number" name="trail_seconds" step="0.1" min="0.1" max="10"
+                value="{{ defaults.trail_seconds }}" style="width:100%;margin-top:4px">
+              <span class="muted-small" style="font-size:10px">History time window</span>
+            </label>
+            <label>
+              <span class="muted-small">Max Points</span>
+              <input type="number" name="trail_max_points" min="2" max="200" value="{{ defaults.trail_max_points }}"
+                style="width:100%;margin-top:4px">
+              <span class="muted-small" style="font-size:10px">Safety cap per track</span>
+            </label>
+            <label>
+              <span class="muted-small">Stride</span>
+              <input type="number" name="trail_stride" min="1" max="10" value="{{ defaults.trail_stride }}"
+                style="width:100%;margin-top:4px">
+              <span class="muted-small" style="font-size:10px">Draw every Nth point</span>
+            </label>
+            <label>
+              <span class="muted-small">Thickness (px)</span>
+              <input type="number" name="trail_thickness" min="1" max="10" value="{{ defaults.trail_thickness }}"
+                style="width:100%;margin-top:4px">
+            </label>
+            <label>
+              <span class="muted-small">Alpha (opacity)</span>
+              <input type="number" name="trail_alpha" step="0.05" min="0.1" max="1.0" value="{{ defaults.trail_alpha }}"
+                style="width:100%;margin-top:4px">
+            </label>
+            <label style="display:flex;align-items:center;gap:8px">
+              <input type="checkbox" name="trail_fade" {% if defaults.trail_fade %}checked{% endif %}>
+              <span class="muted-small">Fade Effect</span>
+              <span class="muted-small" style="font-size:10px">(older = dimmer)</span>
+            </label>
+            <label>
+              <span class="muted-small">Anchor Point</span>
+              <select name="trail_anchor"
+                style="width:100%;margin-top:4px;padding:6px;background:#161b22;border:1px solid #30363d;border-radius:6px;color:#c9d1d9">
+                <option value="bottom_center" {% if defaults.trail_anchor=='bottom_center' %}selected{% endif %}>Bottom
+                  Center</option>
+                <option value="center" {% if defaults.trail_anchor=='center' %}selected{% endif %}>Center</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <!-- Violation Detection Settings -->
+        <div style="margin-top:20px">
+          <h4 style="color:#8b949e;margin:0 0 12px 0;font-size:13px;border-bottom:1px solid #21262d;padding-bottom:6px">
+            🚨 Speed Violation Detection
+          </h4>
+          <p class="muted-small" style="margin:0 0 12px 0;font-size:11px">
+            Capture snapshots and flag vehicles exceeding a speed threshold. Disabled by default.
+          </p>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:12px">
+            <label style="display:flex;align-items:center;gap:8px">
+              <input type="checkbox" name="violation_enabled" {% if defaults.violation_enabled %}checked{% endif %}>
+              <span class="muted-small">Enable Violations</span>
+            </label>
+            <label>
+              <span class="muted-small">Speed Threshold (km/h)</span>
+              <input type="number" name="violation_speed_kmh" step="1" min="10" max="300"
+                value="{{ defaults.violation_speed_kmh }}" style="width:100%;margin-top:4px">
+              <span class="muted-small" style="font-size:10px">Flag if >= this speed</span>
+            </label>
+            <label>
+              <span class="muted-small">Min Duration (s)</span>
+              <input type="number" name="violation_min_seconds" step="0.1" min="0.1" max="5.0"
+                value="{{ defaults.violation_min_seconds }}" style="width:100%;margin-top:4px">
+              <span class="muted-small" style="font-size:10px">Above threshold for this long</span>
+            </label>
+            <label>
+              <span class="muted-small">Cooldown (s)</span>
+              <input type="number" name="violation_cooldown_seconds" step="0.5" min="0.5" max="30.0"
+                value="{{ defaults.violation_cooldown_seconds }}" style="width:100%;margin-top:4px">
+              <span class="muted-small" style="font-size:10px">Between captures for same track</span>
+            </label>
+            <label>
+              <span class="muted-small">Capture Mode</span>
+              <select name="violation_capture_mode"
+                style="width:100%;margin-top:4px;padding:6px;background:#161b22;border:1px solid #30363d;border-radius:6px;color:#c9d1d9">
+                <option value="peak_speed" {% if defaults.violation_capture_mode=='peak_speed' %}selected{% endif %}>
+                  Peak Speed</option>
+                <option value="first_crossing" {% if defaults.violation_capture_mode=='first_crossing' %}selected{%
+                  endif %}>
+                  First Crossing</option>
+              </select>
+              <span class="muted-small" style="font-size:10px">When to capture snapshot</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:8px">
+              <input type="checkbox" name="violation_save_full_frame" {% if defaults.violation_save_full_frame
+                %}checked{% endif %}>
+              <span class="muted-small">Save Full Frame</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:8px">
+              <input type="checkbox" name="violation_save_crop" {% if defaults.violation_save_crop %}checked{% endif %}>
+              <span class="muted-small">Save Cropped Image</span>
+            </label>
+            <label>
+              <span class="muted-small">Crop Padding (px)</span>
+              <input type="number" name="violation_crop_padding_px" min="0" max="100"
+                value="{{ defaults.violation_crop_padding_px }}" style="width:100%;margin-top:4px">
+            </label>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <div>
+      <button type="submit" class="btn primary" style="padding:12px 24px;font-size:14px">
+        📤 Upload & Start Calibration
+      </button>
+    </div>
+  </form>
+</section>
+
+<section class="card" style="background:#0d1117;border:1px solid #238636">
+  <h3 style="margin:0 0 10px 0;font-size:14px;color:#238636">💡 Calibration Tips</h3>
+  <ul style="margin:0;padding-left:20px;color:#8b949e;font-size:13px;line-height:1.8">
+    <li>Choose 4 points that form a <strong>rectangle on the road plane</strong> (e.g., lane marking corners)</li>
+    <li>Measure the real-world distances between points in <strong>meters</strong></li>
+    <li>Order points <strong>consistently clockwise</strong> starting from top-left</li>
+    <li>Larger calibration areas give better accuracy for speed measurement</li>
+    <li>Avoid points that are not on the road surface (e.g., curbs, barriers)</li>
+  </ul>
+</section>
+{% endblock %}

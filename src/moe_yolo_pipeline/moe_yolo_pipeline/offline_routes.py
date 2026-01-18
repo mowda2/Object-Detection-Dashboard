@@ -180,6 +180,7 @@ def offline_analyze():
         # run analyzer (reads from media_path)
         rec = {
             "src": media_path,
+            "original_filename": filename,  # PASS 2: for summary.json naming
             "out_video": out_video,
             "out_csv": out_csv,
             "out_json": out_json,
