@@ -39,10 +39,12 @@
       <input type="file" name="file" accept=".mp4,.mov" required id="video-file-input"
         style="width:100%;padding:10px;background:#161b22;border:1px solid #30363d;border-radius:8px;color:#c9d1d9">
       <p class="muted-small" style="margin-top:4px">Supported: MP4, MOV (max 500MB)</p>
+      <p id="video-debug" class="muted-small" style="margin-top:4px;color:#f0883e"></p>
     </div>
 
     <!-- Long Video Optimization Preset -->
-    <div id="long-video-preset" style="display:none;background:linear-gradient(135deg,#1a2332 0%,#0d1117 100%);border:1px solid #3fb950;border-radius:10px;padding:16px">
+    <div id="long-video-preset"
+      style="display:none;background:linear-gradient(135deg,#1a2332 0%,#0d1117 100%);border:1px solid #3fb950;border-radius:10px;padding:16px">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
         <span style="font-size:24px">⚡</span>
         <div>
@@ -51,17 +53,20 @@
         </div>
       </div>
       <p style="color:#8b949e;font-size:13px;margin:0 0 12px 0">
-        For videos over <strong>10 minutes</strong>, we recommend optimized settings to reduce processing time while maintaining accuracy.
+        For videos over <strong>10 minutes</strong>, we recommend optimized settings to reduce processing time while
+        maintaining accuracy.
       </p>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button type="button" id="apply-optimizations-btn" class="btn" style="background:#238636;border-color:#238636">
           ✨ Apply Optimizations
         </button>
-        <button type="button" id="skip-optimizations-btn" class="btn" style="background:transparent;border-color:#30363d">
+        <button type="button" id="skip-optimizations-btn" class="btn"
+          style="background:transparent;border-color:#30363d">
           Keep Default Settings
         </button>
       </div>
-      <div id="optimization-applied" style="display:none;margin-top:12px;padding:10px;background:#0d1117;border-radius:8px;border:1px solid #238636">
+      <div id="optimization-applied"
+        style="display:none;margin-top:12px;padding:10px;background:#0d1117;border-radius:8px;border:1px solid #238636">
         <div style="color:#3fb950;font-weight:600;margin-bottom:8px">✓ Optimizations Applied:</div>
         <ul style="margin:0;padding-left:20px;color:#8b949e;font-size:12px;line-height:1.6">
           <li><strong>Frame Skip: 3</strong> — Process every 3rd frame (3x faster)</li>
@@ -69,7 +74,8 @@
           <li><strong>Trails: Disabled</strong> — Reduces memory usage</li>
           <li><strong>Violations: Disabled</strong> — Faster processing</li>
         </ul>
-        <p class="muted-small" style="margin:8px 0 0 0;font-size:11px">You can still adjust these in Advanced Settings below.</p>
+        <p class="muted-small" style="margin:8px 0 0 0;font-size:11px">You can still adjust these in Advanced Settings
+          below.</p>
       </div>
     </div>
 
@@ -336,114 +342,162 @@
 </section>
 
 <script>
-(function() {
-  const fileInput = document.getElementById('video-file-input');
-  const presetDiv = document.getElementById('long-video-preset');
-  const durationText = document.getElementById('video-duration-text');
-  const applyBtn = document.getElementById('apply-optimizations-btn');
-  const skipBtn = document.getElementById('skip-optimizations-btn');
-  const appliedDiv = document.getElementById('optimization-applied');
-  
-  // Threshold in seconds (10 minutes)
-  const LONG_VIDEO_THRESHOLD = 10 * 60;
-  
-  // Form field references for optimization
-  const fields = {
-    frame_skip: () => document.querySelector('input[name="frame_skip"]'),
-    resize_width: () => document.querySelector('input[name="resize_width"]'),
-    enable_trails: () => document.querySelector('input[name="enable_trails"]'),
-    violation_enabled: () => document.querySelector('input[name="violation_enabled"]'),
-  };
-  
-  // Optimized values for long videos
-  const OPTIMIZED_VALUES = {
-    frame_skip: 3,
-    resize_width: 640,
-    enable_trails: false,
-    violation_enabled: false,
-  };
-  
-  // Format duration as human-readable
-  function formatDuration(seconds) {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-    if (hrs > 0) return `${hrs}h ${mins}m ${secs}s`;
-    if (mins > 0) return `${mins}m ${secs}s`;
-    return `${secs}s`;
-  }
-  
-  // Check video duration when file is selected
-  fileInput.addEventListener('change', function() {
-    const file = this.files[0];
-    if (!file) {
-      presetDiv.style.display = 'none';
-      return;
+  (function () {
+    const fileInput = document.getElementById('video-file-input');
+    const presetDiv = document.getElementById('long-video-preset');
+    const durationText = document.getElementById('video-duration-text');
+    const applyBtn = document.getElementById('apply-optimizations-btn');
+    const skipBtn = document.getElementById('skip-optimizations-btn');
+    const appliedDiv = document.getElementById('optimization-applied');
+    const debugEl = document.getElementById('video-debug');
+
+    // Debug helper
+    function debug(msg) {
+      console.log('[LongVideo]', msg);
+      if (debugEl) debugEl.textContent = msg;
     }
-    
-    // Create a video element to get duration
-    const video = document.createElement('video');
-    video.preload = 'metadata';
-    
-    video.onloadedmetadata = function() {
-      URL.revokeObjectURL(video.src);
-      const duration = video.duration;
-      
-      if (duration >= LONG_VIDEO_THRESHOLD) {
-        durationText.textContent = `Video duration: ${formatDuration(duration)} — Processing may take a while`;
-        presetDiv.style.display = 'block';
-        appliedDiv.style.display = 'none';
-      } else {
+
+    debug('Script loaded ✓');
+
+    // Threshold in seconds (10 minutes)
+    const LONG_VIDEO_THRESHOLD = 10 * 60;
+    // Fallback: assume videos over 50MB are potentially "long"
+    const LARGE_FILE_SIZE_MB = 50;
+
+    // Form field references for optimization
+    const fields = {
+      frame_skip: () => document.querySelector('input[name="frame_skip"]'),
+      resize_width: () => document.querySelector('input[name="resize_width"]'),
+      enable_trails: () => document.querySelector('input[name="enable_trails"]'),
+      violation_enabled: () => document.querySelector('input[name="violation_enabled"]'),
+    };
+
+    // Optimized values for long videos
+    const OPTIMIZED_VALUES = {
+      frame_skip: 3,
+      resize_width: 640,
+      enable_trails: false,
+      violation_enabled: false,
+    };
+
+    // Format duration as human-readable
+    function formatDuration(seconds) {
+      const hrs = Math.floor(seconds / 3600);
+      const mins = Math.floor((seconds % 3600) / 60);
+      const secs = Math.floor(seconds % 60);
+      if (hrs > 0) return `${hrs}h ${mins}m ${secs}s`;
+      if (mins > 0) return `${mins}m ${secs}s`;
+      return `${secs}s`;
+    }
+
+    // Show the optimization panel
+    function showOptimizationPanel(message) {
+      durationText.textContent = message;
+      presetDiv.style.display = 'block';
+      appliedDiv.style.display = 'none';
+      applyBtn.style.display = '';
+      skipBtn.style.display = '';
+    }
+
+    // Check video duration when file is selected
+    fileInput.addEventListener('change', function () {
+      debug('File selected...');
+      const file = this.files[0];
+      if (!file) {
         presetDiv.style.display = 'none';
+        debug('No file');
+        return;
       }
-    };
-    
-    video.onerror = function() {
-      // Can't determine duration, hide preset
-      presetDiv.style.display = 'none';
-    };
-    
-    video.src = URL.createObjectURL(file);
-  });
-  
-  // Apply optimizations button
-  applyBtn.addEventListener('click', function() {
-    // Open the advanced settings details if closed
-    const details = document.querySelector('details');
-    if (details) details.open = true;
-    
-    // Apply optimized values
-    const frameSkip = fields.frame_skip();
-    if (frameSkip) frameSkip.value = OPTIMIZED_VALUES.frame_skip;
-    
-    const resizeWidth = fields.resize_width();
-    if (resizeWidth) resizeWidth.value = OPTIMIZED_VALUES.resize_width;
-    
-    const enableTrails = fields.enable_trails();
-    if (enableTrails) enableTrails.checked = OPTIMIZED_VALUES.enable_trails;
-    
-    const violationEnabled = fields.violation_enabled();
-    if (violationEnabled) violationEnabled.checked = OPTIMIZED_VALUES.violation_enabled;
-    
-    // Show confirmation
-    appliedDiv.style.display = 'block';
-    applyBtn.style.display = 'none';
-    skipBtn.style.display = 'none';
-    
-    // Highlight changed fields briefly
-    [frameSkip, resizeWidth].forEach(el => {
-      if (el) {
-        el.style.transition = 'background 0.3s';
-        el.style.background = '#1a3d1a';
-        setTimeout(() => { el.style.background = ''; }, 1500);
+
+      const fileSizeMB = file.size / (1024 * 1024);
+      debug(`File: ${file.name} (${fileSizeMB.toFixed(1)} MB) - Reading metadata...`);
+
+      // For large files, show panel immediately based on file size
+      // (don't wait for potentially slow metadata loading)
+      if (fileSizeMB >= LARGE_FILE_SIZE_MB) {
+        debug(`Large file! Showing optimization panel immediately.`);
+        showOptimizationPanel(`Large file detected (${fileSizeMB.toFixed(0)} MB) — Optimizations recommended`);
+        return; // Skip metadata reading for large files
       }
+
+      // For smaller files, try to read duration
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+
+      // Timeout fallback - if metadata doesn't load in 2 seconds
+      const timeout = setTimeout(function () {
+        debug(`Timeout reading metadata`);
+        presetDiv.style.display = 'none';
+      }, 2000);
+
+      video.onloadedmetadata = function () {
+        clearTimeout(timeout);
+        URL.revokeObjectURL(video.src);
+        const duration = video.duration;
+        debug(`Duration: ${formatDuration(duration)} (${duration}s), threshold: ${LONG_VIDEO_THRESHOLD}s`);
+
+        if (duration >= LONG_VIDEO_THRESHOLD) {
+          showOptimizationPanel(`Video duration: ${formatDuration(duration)} — Processing may take a while`);
+        } else if (fileSizeMB >= LARGE_FILE_SIZE_MB) {
+          // Short but large file - still might benefit from optimizations
+          showOptimizationPanel(`Large file (${fileSizeMB.toFixed(0)} MB) — Consider optimizations for faster processing`);
+        } else {
+          presetDiv.style.display = 'none';
+        }
+      };
+
+      video.onerror = function () {
+        clearTimeout(timeout);
+        console.log('Could not read video metadata, using file size fallback');
+        // Can't determine duration, use file size as fallback
+        if (fileSizeMB >= LARGE_FILE_SIZE_MB) {
+          showOptimizationPanel(`Large file detected (${fileSizeMB.toFixed(0)} MB) — Processing may take a while`);
+        } else {
+          presetDiv.style.display = 'none';
+        }
+      };
+
+      video.src = URL.createObjectURL(file);
     });
-  });
-  
-  // Skip optimizations button
-  skipBtn.addEventListener('click', function() {
-    presetDiv.style.display = 'none';
-  });
-})();
+
+    // Apply optimizations button
+    applyBtn.addEventListener('click', function () {
+      // Open the advanced settings details if closed
+      const details = document.querySelector('details');
+      if (details) details.open = true;
+
+      // Apply optimized values
+      const frameSkip = fields.frame_skip();
+      if (frameSkip) frameSkip.value = OPTIMIZED_VALUES.frame_skip;
+
+      const resizeWidth = fields.resize_width();
+      if (resizeWidth) resizeWidth.value = OPTIMIZED_VALUES.resize_width;
+
+      const enableTrails = fields.enable_trails();
+      if (enableTrails) enableTrails.checked = OPTIMIZED_VALUES.enable_trails;
+
+      const violationEnabled = fields.violation_enabled();
+      if (violationEnabled) violationEnabled.checked = OPTIMIZED_VALUES.violation_enabled;
+
+      // Show confirmation
+      appliedDiv.style.display = 'block';
+      applyBtn.style.display = 'none';
+      skipBtn.style.display = 'none';
+
+      // Highlight changed fields briefly
+      [frameSkip, resizeWidth].forEach(el => {
+        if (el) {
+          el.style.transition = 'background 0.3s';
+          el.style.background = '#1a3d1a';
+          setTimeout(() => { el.style.background = ''; }, 1500);
+        }
+      });
+    });
+
+    // Skip optimizations button
+    skipBtn.addEventListener('click', function () {
+      presetDiv.style.display = 'none';
+    });
+  })();
 </script>
 {% endblock %}
