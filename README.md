@@ -193,7 +193,17 @@ Log to violations.json with metadata
 
 - **Python 3.10+** (tested on 3.10, 3.11, 3.12)
 - **macOS** or **Linux** (Windows via WSL2)
+- **ffmpeg** (for browser-compatible video encoding)
 - ~2GB disk space for dependencies
+
+```bash
+# Install ffmpeg (required for Chrome/Firefox video playback)
+# macOS:
+brew install ffmpeg
+
+# Ubuntu/Debian:
+sudo apt install ffmpeg
+```
 
 ### 1. Clone & Setup
 

@@ -22,6 +22,8 @@ import json
 import csv
 import time
 import hashlib
+import shutil
+import subprocess
 from datetime import datetime
 from typing import Dict, List, Tuple, Optional, Any
 from collections import defaultdict, deque
@@ -31,6 +33,66 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 import supervision as sv
+
+
+# ---------------------------------------------------------------------------
+# Video Codec Utilities (for browser compatibility)
+# ---------------------------------------------------------------------------
+
+def reencode_video_for_browser(input_path: str, output_path: str = None) -> bool:
+    """
+    Re-encode video to H.264 for browser compatibility (Chrome, Firefox, Edge).
+    Uses ffmpeg if available. Falls back to original if ffmpeg not found.
+    
+    Args:
+        input_path: Path to input video (mp4v codec)
+        output_path: Path for output video. If None, replaces input in-place.
+    
+    Returns:
+        True if re-encoding succeeded, False otherwise
+    """
+    if output_path is None:
+        output_path = input_path
+    
+    # Check if ffmpeg is available
+    ffmpeg_path = shutil.which("ffmpeg")
+    if not ffmpeg_path:
+        return False
+    
+    try:
+        # Create temp output path
+        temp_output = input_path + ".h264.mp4"
+        
+        # Re-encode with H.264 (libx264) for browser compatibility
+        # -y: overwrite output
+        # -i: input file
+        # -c:v libx264: use H.264 codec
+        # -preset fast: balance speed/quality
+        # -crf 23: quality (lower = better, 23 is default)
+        # -pix_fmt yuv420p: pixel format for compatibility
+        # -movflags +faststart: optimize for web streaming
+        cmd = [
+            ffmpeg_path, "-y", "-i", input_path,
+            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+            "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+            "-an",  # no audio (our videos don't have audio)
+            temp_output
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, timeout=300)
+        
+        if result.returncode == 0 and os.path.exists(temp_output):
+            # Replace original with re-encoded version
+            os.replace(temp_output, output_path)
+            return True
+        else:
+            # Clean up failed temp file
+            if os.path.exists(temp_output):
+                os.remove(temp_output)
+            return False
+            
+    except Exception:
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -1267,6 +1329,13 @@ def run_speed_job(job_dir: str, settings: dict = None, progress_cb=None, message
         csv_file.close()
         cap.release()
         writer.release()
+    
+    # Re-encode video for browser compatibility (Chrome, Firefox, Edge)
+    message_cb("Re-encoding video for browser compatibility...")
+    if reencode_video_for_browser(output_video):
+        message_cb("Video re-encoded to H.264 for browser compatibility")
+    else:
+        message_cb("Note: ffmpeg not available, video may not play in Chrome/Firefox")
     
     # ---------------------------------------------------------------------------
     # Finalize violations (capture any pending peak_speed events at end-of-video)
