@@ -177,6 +177,11 @@ def offline_analyze():
         OFFLINE_JOBS[aid]["message"] = str(msg)
 
     def _worker():
+        import logging
+        logging.basicConfig(level=logging.DEBUG)
+        logger = logging.getLogger(__name__)
+        logger.info(f"[_worker] Starting job {aid}")
+        
         # run analyzer (reads from media_path)
         rec = {
             "src": media_path,
@@ -194,10 +199,12 @@ def offline_analyze():
             "message_cb": message_cb,
         }
         run_offline_speed_job(rec)
+        logger.info(f"[_worker] run_offline_speed_job completed for {aid}, state={OFFLINE_JOBS[aid]['state']}")
 
         if OFFLINE_JOBS[aid]["state"] == "error" or rec.get("error"):
             OFFLINE_JOBS[aid]["state"] = "error"
             OFFLINE_JOBS[aid]["error"] = rec.get("error")
+            logger.error(f"[_worker] Job {aid} failed with error: {rec.get('error')}")
             return
 
         # Insert analysis row into DB from produced artifacts
@@ -209,9 +216,11 @@ def offline_analyze():
                 fps = j.get("fps")
                 frames = j.get("frames")
                 class_counts = j.get("unique_objects_by_class", {}) or {}
-        except Exception:
-            pass
+            logger.info(f"[_worker] Loaded summary.json: fps={fps}, frames={frames}, classes={len(class_counts)}")
+        except Exception as e:
+            logger.error(f"[_worker] Failed to load summary.json: {e}")
 
+        logger.info(f"[_worker] Calling LIB.insert_analysis for {aid}")
         LIB.insert_analysis({
             "id": aid,
             "file_hash": file_hash,
@@ -228,10 +237,12 @@ def offline_analyze():
             "json_path": out_json,
             "poster_path": out_poster,
         }, class_counts)
+        logger.info(f"[_worker] insert_analysis completed for {aid}")
 
         OFFLINE_JOBS[aid]["state"] = "done"
         OFFLINE_JOBS[aid]["progress"] = 1.0
         OFFLINE_JOBS[aid]["message"] = "Done."
+        logger.info(f"[_worker] Job {aid} completed successfully")
 
     threading.Thread(target=_worker, daemon=True).start()
     return jsonify({"ok": True, "job_id": aid, "cached": False})
