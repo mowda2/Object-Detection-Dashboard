@@ -1,4 +1,14 @@
 {% extends "index.html" %}
+{% block title %}Calibrate — Traffic Analysis Dashboard{% endblock %}
+{% block breadcrumb %}
+<nav class="breadcrumb" aria-label="Breadcrumb">
+  <a href="/">Home</a>
+  <span class="breadcrumb-sep">›</span>
+  <a href="/speed">Speed Analysis</a>
+  <span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Calibrate</span>
+</nav>
+{% endblock %}
 {% block content %}
 <style>
   .calibration-container {
@@ -12,8 +22,8 @@
   .frame-wrapper {
     position: relative;
     display: inline-block;
-    border: 2px solid #444;
-    border-radius: 8px;
+    border: 2px solid var(--border-default);
+    border-radius: var(--radius);
     overflow: hidden;
     background: #000;
   }
@@ -35,47 +45,47 @@
 
   .corner-handle {
     position: absolute;
-    width: 12px;
-    height: 12px;
-    background: #ff6600;
+    width: 14px;
+    height: 14px;
+    background: var(--accent-orange);
     border: 2px solid #fff;
     border-radius: 50%;
     cursor: grab;
     transform: translate(-50%, -50%);
     z-index: 100;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
     transition: transform 0.1s, background 0.1s;
   }
 
   .corner-handle:hover {
-    background: #ff9900;
+    background: var(--warning);
     transform: translate(-50%, -50%) scale(1.3);
   }
 
   .corner-handle:active {
     cursor: grabbing;
-    background: #ffcc00;
+    background: var(--warning-text);
   }
 
   .corner-handle .label {
     position: absolute;
-    top: -24px;
+    top: -26px;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.8);
+    background: rgba(0, 0, 0, 0.85);
     color: #fff;
-    padding: 2px 6px;
-    border-radius: 4px;
+    padding: 2px 8px;
+    border-radius: var(--radius-xs);
     font-size: 11px;
     white-space: nowrap;
-    font-weight: bold;
+    font-weight: 600;
   }
 
   .calibration-form {
-    background: #1a1a2e;
-    padding: 20px;
-    border-radius: 8px;
-    border: 1px solid #333;
+    background: var(--bg-card);
+    padding: 24px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border-default);
   }
 
   .form-row {
@@ -97,30 +107,31 @@
 
   .form-group label {
     display: block;
-    margin-bottom: 5px;
-    color: #aaa;
+    margin-bottom: 6px;
+    color: var(--text-secondary);
     font-size: 13px;
   }
 
   .form-group input {
     width: 100%;
     padding: 10px;
-    background: #0a0a15;
-    border: 1px solid #444;
-    border-radius: 4px;
-    color: #fff;
+    background: var(--bg-input);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-xs);
+    color: var(--text-primary);
     font-size: 14px;
     box-sizing: border-box;
   }
 
   .form-group input:focus {
-    border-color: #ff6600;
+    border-color: var(--accent-orange);
     outline: none;
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.2);
   }
 
   .form-group input.synced {
-    border-color: #4a4;
-    background: #0a150a;
+    border-color: var(--success);
+    background: rgba(34, 197, 94, 0.06);
   }
 
   .presets {
@@ -132,48 +143,48 @@
 
   .preset-btn {
     padding: 8px 16px;
-    background: #2a2a4a;
-    border: 1px solid #444;
-    border-radius: 4px;
-    color: #ccc;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
     cursor: pointer;
     font-size: 13px;
-    transition: all 0.2s;
+    transition: all var(--transition);
   }
 
   .preset-btn:hover {
-    background: #3a3a5a;
-    border-color: #ff6600;
-    color: #fff;
+    background: var(--bg-card-hover);
+    border-color: var(--accent-orange);
+    color: var(--text-primary);
   }
 
   .submit-btn {
     padding: 12px 30px;
-    background: linear-gradient(135deg, #ff6600, #ff9900);
+    background: linear-gradient(135deg, var(--accent-orange), var(--warning));
     border: none;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     color: #fff;
-    font-size: 16px;
-    font-weight: bold;
+    font-size: 15px;
+    font-weight: 700;
     cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: transform var(--transition), box-shadow var(--transition);
   }
 
   .submit-btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 15px rgba(255, 102, 0, 0.4);
+    box-shadow: 0 6px 20px rgba(249, 115, 22, 0.35);
   }
 
   .instructions {
-    background: #1a2a1a;
-    border: 1px solid #2a4a2a;
-    border-radius: 8px;
-    padding: 15px;
+    background: rgba(34, 197, 94, 0.06);
+    border: 1px solid rgba(34, 197, 94, 0.25);
+    border-radius: var(--radius);
+    padding: 18px;
     margin-bottom: 20px;
   }
 
   .instructions h4 {
-    color: #4a4;
+    color: var(--success);
     margin: 0 0 10px 0;
   }
 
@@ -181,7 +192,7 @@
   .instructions ul {
     margin: 0;
     padding-left: 20px;
-    color: #aaa;
+    color: var(--text-secondary);
   }
 
   .instructions li {
@@ -189,29 +200,34 @@
   }
 
   .success-msg {
-    background: #1a3a1a;
-    border: 1px solid #2a5a2a;
-    color: #4a4;
-    padding: 15px;
-    border-radius: 8px;
+    background: var(--success-bg);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    color: var(--success);
+    padding: 18px;
+    border-radius: var(--radius);
     margin-bottom: 20px;
   }
 
   .back-link {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     margin-bottom: 20px;
-    color: #ff6600;
+    color: var(--accent-orange);
     text-decoration: none;
+    font-weight: 500;
+    transition: color var(--transition);
   }
 
   .back-link:hover {
-    text-decoration: underline;
+    color: var(--warning);
+    text-decoration: none;
   }
 
   /* Collapsible advanced section */
   .advanced-section {
     margin-top: 20px;
-    border-top: 1px solid #333;
+    border-top: 1px solid var(--border-default);
     padding-top: 15px;
   }
 
@@ -220,14 +236,15 @@
     align-items: center;
     gap: 10px;
     cursor: pointer;
-    color: #888;
+    color: var(--text-muted);
     font-size: 14px;
     margin-bottom: 15px;
     user-select: none;
+    transition: color var(--transition);
   }
 
   .advanced-toggle:hover {
-    color: #ff6600;
+    color: var(--accent-orange);
   }
 
   .advanced-toggle .arrow {
@@ -247,16 +264,16 @@
   }
 
   .point-section {
-    background: #0f0f1a;
-    border: 1px solid #2a2a4a;
-    border-radius: 6px;
-    padding: 15px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    padding: 16px;
     margin-bottom: 15px;
   }
 
   .point-section h5 {
     margin: 0 0 10px 0;
-    color: #ff6600;
+    color: var(--accent-orange);
     font-size: 14px;
     display: flex;
     align-items: center;
@@ -266,33 +283,214 @@
   .point-section h5 .dot {
     width: 12px;
     height: 12px;
-    background: #ff6600;
+    background: var(--accent-orange);
     border-radius: 50%;
     border: 2px solid #fff;
   }
 
   .sync-indicator {
     font-size: 11px;
-    color: #4a4;
+    color: var(--success);
     margin-left: auto;
   }
 
   .section-divider {
     border: none;
-    border-top: 1px solid #333;
+    border-top: 1px solid var(--border-default);
     margin: 20px 0;
   }
 
   .help-text {
     font-size: 12px;
-    color: #666;
+    color: var(--text-muted);
     margin-top: 5px;
+  }
+
+  /* ── Map Section ── */
+  .map-section {
+    max-width: 1200px;
+    margin: 30px auto 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+
+  .map-section h3 {
+    margin: 0 0 10px 0;
+    color: var(--accent-orange);
+  }
+
+  .map-instructions {
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-bottom: 12px;
+  }
+
+  .map-instructions ol {
+    margin: 5px 0 0 0;
+    padding-left: 20px;
+  }
+
+  .map-instructions li {
+    margin-bottom: 3px;
+  }
+
+  .map-toolbar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+
+  .map-toolbar input[type="text"] {
+    flex: 1;
+    min-width: 200px;
+    padding: 10px 14px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 14px;
+  }
+
+  .map-toolbar input[type="text"]:focus {
+    border-color: var(--accent-orange);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.2);
+  }
+
+  .map-toolbar button {
+    padding: 8px 16px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all var(--transition);
+    white-space: nowrap;
+  }
+
+  .map-toolbar button:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--accent-orange);
+    color: var(--text-primary);
+  }
+
+  #map-container {
+    width: 100%;
+    height: 450px;
+    border-radius: var(--radius-sm);
+    border: 2px solid var(--border-default);
+    z-index: 1;
+  }
+
+  .map-results {
+    margin-top: 14px;
+    padding: 16px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    display: none;
+  }
+
+  .map-results.visible {
+    display: block;
+  }
+
+  .map-results .result-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    color: var(--text-secondary);
+    font-size: 14px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .map-results .result-row:last-child {
+    border-bottom: none;
+  }
+
+  .map-results .result-value {
+    color: var(--accent-orange);
+    font-weight: 700;
+    font-size: 16px;
+  }
+
+  .map-apply-btn {
+    margin-top: 12px;
+    padding: 10px 24px;
+    background: linear-gradient(135deg, var(--success), #10b981);
+    border: none;
+    border-radius: var(--radius-sm);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform var(--transition), box-shadow var(--transition);
+  }
+
+  .map-apply-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(34, 197, 94, 0.35);
+  }
+
+  .map-point-badge {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    line-height: 20px;
+    text-align: center;
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: bold;
+    color: #fff;
+    margin-right: 6px;
+  }
+
+  .map-point-badge.placed {
+    background: var(--accent-orange);
+  }
+
+  .map-point-badge.pending {
+    background: var(--text-muted);
+  }
+
+  .map-status {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 10px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  /* Leaflet dark theme overrides */
+  .leaflet-control-zoom a {
+    background: var(--bg-card) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border-default) !important;
+  }
+
+  .leaflet-control-zoom a:hover {
+    background: var(--bg-card-hover) !important;
   }
 </style>
 
-<a href="{{ url_for('speed.speed_results', job_id=job_id) }}" class="back-link">← Back to Results</a>
+<a href="{{ url_for('speed.speed_results', job_id=job_id) }}" class="back-link">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M19 12H5M12 19l-7-7 7-7" />
+  </svg>
+  Back to Results
+</a>
 
-<h2>📐 Calibrate Speed Measurement</h2>
+<div class="page-header">
+  <h1 class="page-title">📐 Calibrate Speed Measurement</h1>
+  <p class="page-subtitle">Define the real-world area for accurate speed calculations</p>
+</div>
 
 {% if success or existing_cal %}
 <div class="success-msg"
@@ -491,6 +689,82 @@
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- 🗺️ Map-Based Distance Measurement Section                    -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div class="map-section">
+  <h3>🗺️ Measure Distances on Map</h3>
+  <div class="map-instructions">
+    Use the map to measure the real-world dimensions of the area you outlined above.
+    <ol>
+      <li>Search for the camera location (or zoom/pan to it)</li>
+      <li>Click 4 points on the map matching P1–P4 in the video frame</li>
+      <li>The width and height are calculated automatically</li>
+      <li>Click <strong>"Apply to Calibration"</strong> to fill in the dimensions above</li>
+    </ol>
+  </div>
+
+  <!-- Search bar -->
+  <div class="map-toolbar">
+    <input type="text" id="map-search" placeholder="Search location (e.g. 'Highway A9, Germany')..."
+      onkeydown="if(event.key==='Enter'){event.preventDefault(); searchMapLocation();}">
+    <button onclick="searchMapLocation()">🔍 Search</button>
+    <button onclick="clearMapPoints()">🗑️ Clear Points</button>
+    <button onclick="undoLastMapPoint()">↩️ Undo</button>
+  </div>
+
+  <!-- Point placement status -->
+  <div class="map-status" id="map-status">
+    <span><span class="map-point-badge pending" id="mp-badge-1">1</span>P1</span>
+    <span><span class="map-point-badge pending" id="mp-badge-2">2</span>P2</span>
+    <span><span class="map-point-badge pending" id="mp-badge-3">3</span>P3</span>
+    <span><span class="map-point-badge pending" id="mp-badge-4">4</span>P4</span>
+    <span style="margin-left: auto; font-style: italic;" id="map-hint">Click on the map to place P1</span>
+  </div>
+
+  <!-- Map container -->
+  <div id="map-container"></div>
+
+  <!-- Computed results -->
+  <div class="map-results" id="map-results">
+    <div class="result-row">
+      <span>📏 Top edge (P1→P2):</span>
+      <span class="result-value" id="dist-top">—</span>
+    </div>
+    <div class="result-row">
+      <span>📏 Bottom edge (P4→P3):</span>
+      <span class="result-value" id="dist-bottom">—</span>
+    </div>
+    <div class="result-row">
+      <span>📐 Left side (P1→P4):</span>
+      <span class="result-value" id="dist-left">—</span>
+    </div>
+    <div class="result-row">
+      <span>📐 Right side (P2→P3):</span>
+      <span class="result-value" id="dist-right">—</span>
+    </div>
+    <div class="result-row" style="border-top: 2px solid var(--border-default); padding-top: 10px;">
+      <span><strong>↔️ Average Width:</strong></span>
+      <span class="result-value" id="dist-avg-width" style="color: var(--success);">—</span>
+    </div>
+    <div class="result-row">
+      <span><strong>↕️ Average Height:</strong></span>
+      <span class="result-value" id="dist-avg-height" style="color: var(--success);">—</span>
+    </div>
+    <div class="result-row">
+      <span><strong>📐 Area:</strong></span>
+      <span class="result-value" id="dist-area" style="color: var(--text-secondary);">—</span>
+    </div>
+    <button class="map-apply-btn" onclick="applyMapDimensions()">
+      ✅ Apply to Calibration
+    </button>
+  </div>
+</div>
+
+<!-- Leaflet CSS & JS (free, no API key) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
 <script>
   // Corner positions (percentage of image)
   const corners = {
@@ -553,8 +827,8 @@
 
     svg.innerHTML = `
       <polygon points="${points}" 
-               fill="rgba(255, 102, 0, 0.2)" 
-               stroke="#ff6600" 
+               fill="rgba(249, 115, 22, 0.2)" 
+               stroke="#f97316" 
                stroke-width="2"
                vector-effect="non-scaling-stroke"/>
     `;
@@ -604,10 +878,10 @@
 
   function flashSync() {
     const indicator = document.getElementById('sync-status');
-    indicator.style.color = '#0f0';
+    indicator.style.color = '#4ade80';
     indicator.textContent = '● Synced!';
     setTimeout(() => {
-      indicator.style.color = '#4a4';
+      indicator.style.color = '#22c55e';
       indicator.textContent = '● Synced with visual';
     }, 500);
   }
@@ -758,5 +1032,241 @@
 
   // Re-update on window resize
   window.addEventListener('resize', updateHandlePositions);
+
+  // ══════════════════════════════════════════════════════════════
+  //  🗺️  MAP-BASED DISTANCE MEASUREMENT  (Leaflet + OpenStreetMap)
+  // ══════════════════════════════════════════════════════════════
+
+  // Initialise map (default: central Europe overview)
+  const map = L.map('map-container', {
+    center: [50.0, 10.0],
+    zoom: 5,
+    zoomControl: true
+  });
+
+  // Dark-ish tile layer (free, no API key)
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 22,
+    attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>'
+  }).addTo(map);
+
+  // Switch to satellite view with an extra layer control
+  const satellite = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 22,
+    attribution: '© Esri'
+  }
+  );
+  const streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 22,
+    attribution: '© OpenStreetMap'
+  });
+
+  // Remove the initial base layer and use a layer control
+  map.eachLayer(l => map.removeLayer(l));
+  satellite.addTo(map);  // default to satellite for road measurement
+  L.control.layers({ 'Satellite': satellite, 'Street': streets }, {}, { position: 'topright' }).addTo(map);
+
+  // State
+  const mapPoints = [];         // [{latlng, marker}]
+  let mapPolygon = null;
+  let mapLines = [];
+  const pointLabels = ['P1 (Top-Left)', 'P2 (Top-Right)', 'P3 (Bottom-Right)', 'P4 (Bottom-Left)'];
+  const pointColors = ['#ff6600', '#ff6600', '#ff6600', '#ff6600'];
+
+  function createMapIcon(num) {
+    return L.divIcon({
+      className: '',
+      html: `<div style="
+        width:24px; height:24px; line-height:24px; text-align:center;
+        background:#f97316; color:#fff; border:2px solid #fff;
+        border-radius:50%; font-size:12px; font-weight:bold;
+        box-shadow:0 2px 6px rgba(0,0,0,0.5);
+      ">${num}</div>`,
+      iconSize: [24, 24],
+      iconAnchor: [12, 12]
+    });
+  }
+
+  // Haversine distance (meters) between two L.LatLng objects
+  function haversineMeters(a, b) {
+    const R = 6371000;
+    const dLat = (b.lat - a.lat) * Math.PI / 180;
+    const dLon = (b.lng - a.lng) * Math.PI / 180;
+    const lat1 = a.lat * Math.PI / 180;
+    const lat2 = b.lat * Math.PI / 180;
+    const x = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+  }
+
+  function updateMapStatus() {
+    const n = mapPoints.length;
+    for (let i = 0; i < 4; i++) {
+      const badge = document.getElementById(`mp-badge-${i + 1}`);
+      badge.className = 'map-point-badge ' + (i < n ? 'placed' : 'pending');
+    }
+    const hint = document.getElementById('map-hint');
+    if (n < 4) {
+      hint.textContent = `Click on the map to place P${n + 1}`;
+    } else {
+      hint.textContent = '✅ All 4 points placed — see measurements below';
+    }
+  }
+
+  function drawMapOverlay() {
+    // Remove old shapes
+    if (mapPolygon) { map.removeLayer(mapPolygon); mapPolygon = null; }
+    mapLines.forEach(l => map.removeLayer(l));
+    mapLines = [];
+
+    if (mapPoints.length < 2) return;
+
+    const lls = mapPoints.map(p => p.latlng);
+
+    // Draw lines between consecutive placed points
+    for (let i = 0; i < lls.length - 1; i++) {
+      const line = L.polyline([lls[i], lls[i + 1]], { color: '#f97316', weight: 2, dashArray: '6 4' }).addTo(map);
+      mapLines.push(line);
+    }
+
+    if (mapPoints.length === 4) {
+      // Close the polygon
+      const closeLine = L.polyline([lls[3], lls[0]], { color: '#f97316', weight: 2, dashArray: '6 4' }).addTo(map);
+      mapLines.push(closeLine);
+
+      mapPolygon = L.polygon(lls, {
+        color: '#f97316',
+        weight: 2,
+        fillColor: '#f97316',
+        fillOpacity: 0.15
+      }).addTo(map);
+
+      computeMapDistances();
+    }
+  }
+
+  function computeMapDistances() {
+    if (mapPoints.length < 4) return;
+
+    const [p1, p2, p3, p4] = mapPoints.map(p => p.latlng);
+
+    const dTop = haversineMeters(p1, p2);
+    const dBottom = haversineMeters(p4, p3);
+    const dLeft = haversineMeters(p1, p4);
+    const dRight = haversineMeters(p2, p3);
+
+    const avgWidth = (dTop + dBottom) / 2;
+    const avgHeight = (dLeft + dRight) / 2;
+    const area = avgWidth * avgHeight;
+
+    document.getElementById('dist-top').textContent = dTop.toFixed(2) + ' m';
+    document.getElementById('dist-bottom').textContent = dBottom.toFixed(2) + ' m';
+    document.getElementById('dist-left').textContent = dLeft.toFixed(2) + ' m';
+    document.getElementById('dist-right').textContent = dRight.toFixed(2) + ' m';
+    document.getElementById('dist-avg-width').textContent = avgWidth.toFixed(2) + ' m';
+    document.getElementById('dist-avg-height').textContent = avgHeight.toFixed(2) + ' m';
+    document.getElementById('dist-area').textContent = area.toFixed(2) + ' m²';
+
+    document.getElementById('map-results').classList.add('visible');
+  }
+
+  // Click handler
+  map.on('click', function (e) {
+    if (mapPoints.length >= 4) return;  // already have all 4
+
+    const idx = mapPoints.length;
+    const marker = L.marker(e.latlng, {
+      icon: createMapIcon(idx + 1),
+      draggable: true
+    }).addTo(map);
+
+    marker.bindTooltip(pointLabels[idx], { permanent: false, direction: 'top' });
+
+    const entry = { latlng: e.latlng, marker };
+    mapPoints.push(entry);
+
+    // Update on drag
+    marker.on('drag', function (ev) {
+      entry.latlng = ev.target.getLatLng();
+      drawMapOverlay();
+    });
+
+    updateMapStatus();
+    drawMapOverlay();
+  });
+
+  function clearMapPoints() {
+    mapPoints.forEach(p => map.removeLayer(p.marker));
+    mapPoints.length = 0;
+    if (mapPolygon) { map.removeLayer(mapPolygon); mapPolygon = null; }
+    mapLines.forEach(l => map.removeLayer(l));
+    mapLines = [];
+    document.getElementById('map-results').classList.remove('visible');
+    updateMapStatus();
+  }
+
+  function undoLastMapPoint() {
+    if (mapPoints.length === 0) return;
+    const removed = mapPoints.pop();
+    map.removeLayer(removed.marker);
+    document.getElementById('map-results').classList.remove('visible');
+    drawMapOverlay();
+    updateMapStatus();
+  }
+
+  function applyMapDimensions() {
+    if (mapPoints.length < 4) return;
+
+    const [p1, p2, p3, p4] = mapPoints.map(p => p.latlng);
+    const dTop = haversineMeters(p1, p2);
+    const dBottom = haversineMeters(p4, p3);
+    const dLeft = haversineMeters(p1, p4);
+    const dRight = haversineMeters(p2, p3);
+
+    const avgWidth = (dTop + dBottom) / 2;
+    const avgHeight = (dLeft + dRight) / 2;
+
+    // Round to 1 decimal
+    document.getElementById('width_m').value = Math.round(avgWidth * 10) / 10;
+    document.getElementById('height_m').value = Math.round(avgHeight * 10) / 10;
+
+    updateWorldFields();
+
+    // Scroll up to calibration form & flash
+    document.getElementById('width_m').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    document.getElementById('width_m').style.borderColor = '#22c55e';
+    document.getElementById('height_m').style.borderColor = '#22c55e';
+    setTimeout(() => {
+      document.getElementById('width_m').style.borderColor = '';
+      document.getElementById('height_m').style.borderColor = '';
+    }, 2000);
+  }
+
+  // Location search using free Nominatim (OpenStreetMap geocoder)
+  async function searchMapLocation() {
+    const query = document.getElementById('map-search').value.trim();
+    if (!query) return;
+
+    try {
+      const resp = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`,
+        { headers: { 'Accept': 'application/json' } }
+      );
+      const data = await resp.json();
+      if (data.length > 0) {
+        const lat = parseFloat(data[0].lat);
+        const lon = parseFloat(data[0].lon);
+        map.setView([lat, lon], 18);  // zoom in close for road-level measurement
+      } else {
+        showToast('Location not found. Try a more specific search.', 'warning');
+      }
+    } catch (err) {
+      console.error('Geocoding error:', err);
+      showToast('Search failed. Check your internet connection.', 'danger');
+    }
+  }
+
+  // Initialise map status badges
+  updateMapStatus();
 </script>
 {% endblock %}

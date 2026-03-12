@@ -1,16 +1,31 @@
 {% extends "index.html" %}
+{% block title %}Speed Analysis — Traffic Analysis Dashboard{% endblock %}
+{% block breadcrumb %}
+<nav class="breadcrumb" aria-label="Breadcrumb">
+  <a href="/">Home</a>
+  <span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Speed Analysis</span>
+</nav>
+{% endblock %}
 {% block content %}
-<section class="card">
-  <h2>🚗 Speed (Calibrated)</h2>
-  <p class="muted-small" style="margin-bottom:16px">
-    Measure vehicle speeds using homography-based calibration.<br>
-    Calibration uses 4 road-plane points and real-world meters.
+<div class="page-header">
+  <h1 class="page-title">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-4px;margin-right:6px">
+      <path d="M12 2a10 10 0 100 20 10 10 0 000-20z" />
+      <path d="M12 6v6l4 2" />
+    </svg>
+    Calibrated Speed Analysis
+  </h1>
+  <p class="page-subtitle">Measure vehicle speeds using homography-based calibration with 4 road-plane reference points.
   </p>
+</div>
 
+<section class="card">
   <!-- Instructions Card -->
-  <div class="card" style="background:#0d1117;border:1px solid #30363d;margin-bottom:16px">
-    <h3 style="margin:0 0 10px 0;font-size:14px;color:#8b949e">📋 How It Works</h3>
-    <ol style="margin:0;padding-left:20px;color:#c9d1d9;font-size:13px;line-height:1.8">
+  <div class="alert-box" style="border-color:var(--border-default);margin-bottom:16px">
+    <h3 class="muted-small mb-sm" style="font-size:14px">📋 How It Works</h3>
+    <ol class="instructions-list">
       <li><strong>Upload</strong> a video file (MP4 or MOV, max 500MB)</li>
       <li><strong>Calibrate</strong> by selecting 4 points on the road surface and entering their real-world coordinates
         in meters</li>
@@ -19,239 +34,223 @@
   </div>
 
   {% if error %}
-  <div class="card" style="background:#1a1520;border:1px solid #f85149;margin-bottom:16px">
-    <div style="display:flex;align-items:center;gap:10px">
-      <span style="color:#f85149;font-size:20px">⚠</span>
-      <strong style="color:#f85149">{{ error }}</strong>
+  <div class="alert-box danger mb-md">
+    <div class="flex-center" style="gap:10px">
+      <span style="color:var(--danger);font-size:20px">⚠</span>
+      <strong style="color:var(--danger)">{{ error }}</strong>
     </div>
   </div>
   {% endif %}
 </section>
 
-<section class="card">
+<section class="card card-static">
   <h3>Upload Video for Calibration</h3>
 
-  <form action="{{ url_for('speed.speed_upload') }}" method="post" enctype="multipart/form-data"
-    style="display:flex;flex-direction:column;gap:16px">
+  <form action="{{ url_for('speed.speed_upload') }}" method="post" enctype="multipart/form-data" class="flex-col-gap">
 
     <div>
-      <label style="display:block;margin-bottom:6px">Video File</label>
-      <input type="file" name="file" accept=".mp4,.mov" required id="video-file-input"
-        style="width:100%;padding:10px;background:#161b22;border:1px solid #30363d;border-radius:8px;color:#c9d1d9">
-      <p class="muted-small" style="margin-top:4px">Supported: MP4, MOV (max 500MB)</p>
-      <p id="video-debug" class="muted-small" style="margin-top:4px;color:#f0883e"></p>
+      <label class="form-label">Video File</label>
+      <div class="file-drop-zone" id="speed-drop-zone">
+        <div class="file-drop-zone-icon">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+        </div>
+        <p class="file-drop-zone-text">Drag & drop video here or click to browse</p>
+        <p class="file-drop-zone-hint">Supported: MP4, MOV (max 500MB)</p>
+        <p class="file-drop-zone-name" id="speed-file-name"></p>
+        <input type="file" name="file" accept=".mp4,.mov" required id="video-file-input">
+      </div>
+      <p id="video-debug" class="muted-small mt-xs" style="color:var(--warning)"></p>
+      <p id="speed-time-estimate" class="muted-small mt-xs" style="display:none">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px">
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 6 12 12 16 14" />
+        </svg>
+        Estimated processing time: <strong id="speed-est-time">—</strong>
+      </p>
     </div>
 
     <!-- Long Video Optimization Preset -->
-    <div id="long-video-preset"
-      style="display:none;background:linear-gradient(135deg,#1a2332 0%,#0d1117 100%);border:1px solid #3fb950;border-radius:10px;padding:16px">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+    <div id="long-video-preset" class="alert-box success" style="display:none">
+      <div class="flex-center" style="gap:12px;margin-bottom:12px">
         <span style="font-size:24px">⚡</span>
         <div>
-          <strong style="color:#3fb950;font-size:15px">Long Video Detected</strong>
-          <p class="muted-small" style="margin:2px 0 0 0" id="video-duration-text">Video duration: calculating...</p>
+          <strong class="text-success" style="font-size:15px">Long Video Detected</strong>
+          <p class="muted-small mt-xs" id="video-duration-text">Video duration: calculating...</p>
         </div>
       </div>
-      <p style="color:#8b949e;font-size:13px;margin:0 0 12px 0">
+      <p class="text-secondary" style="font-size:13px;margin:0 0 12px 0">
         For videos over <strong>10 minutes</strong>, we recommend optimized settings to reduce processing time while
         maintaining accuracy.
       </p>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button type="button" id="apply-optimizations-btn" class="btn" style="background:#238636;border-color:#238636">
+      <div class="row-tight">
+        <button type="button" id="apply-optimizations-btn" class="btn"
+          style="background:var(--success);border-color:var(--success)">
           ✨ Apply Optimizations
         </button>
-        <button type="button" id="skip-optimizations-btn" class="btn"
-          style="background:transparent;border-color:#30363d">
+        <button type="button" id="skip-optimizations-btn" class="btn">
           Keep Default Settings
         </button>
       </div>
-      <div id="optimization-applied"
-        style="display:none;margin-top:12px;padding:10px;background:#0d1117;border-radius:8px;border:1px solid #238636">
-        <div style="color:#3fb950;font-weight:600;margin-bottom:8px">✓ Optimizations Applied:</div>
-        <ul style="margin:0;padding-left:20px;color:#8b949e;font-size:12px;line-height:1.6">
+      <div id="optimization-applied" class="mt-md"
+        style="display:none;padding:10px;background:var(--bg-body);border-radius:var(--radius);border:1px solid var(--success)">
+        <div class="text-success" style="font-weight:600;margin-bottom:8px">✓ Optimizations Applied:</div>
+        <ul class="instructions-list" style="font-size:12px">
           <li><strong>Frame Skip: 3</strong> — Process every 3rd frame (3x faster)</li>
           <li><strong>Resize: 640px</strong> — Faster inference at reduced resolution</li>
           <li><strong>Trails: Disabled</strong> — Reduces memory usage</li>
           <li><strong>Violations: Disabled</strong> — Faster processing</li>
         </ul>
-        <p class="muted-small" style="margin:8px 0 0 0;font-size:11px">You can still adjust these in Advanced Settings
-          below.</p>
+        <p class="muted-small mt-sm" style="font-size:11px">You can still adjust these in Advanced Settings below.</p>
       </div>
     </div>
 
     <!-- Advanced Settings (collapsible) -->
-    <details style="background:#0d1117;border:1px solid #30363d;border-radius:10px;padding:12px">
-      <summary style="cursor:pointer;font-weight:600;color:#58a6ff;user-select:none">
-        ⚙️ Advanced Settings (optional)
-      </summary>
+    <details>
+      <summary class="details-summary">⚙️ Advanced Settings (optional)</summary>
 
-      <div style="margin-top:16px">
+      <div class="mt-md">
         <!-- Detection Settings -->
-        <div style="margin-bottom:20px">
-          <h4 style="color:#8b949e;margin:0 0 12px 0;font-size:13px;border-bottom:1px solid #21262d;padding-bottom:6px">
-            🔍 Detection Settings
-          </h4>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:12px">
+        <div class="mb-lg">
+          <h4 class="settings-section-title">🔍 Detection Settings</h4>
+          <div class="form-grid-4col">
             <label>
               <span class="muted-small">Min Confidence</span>
-              <input type="number" name="min_conf" step="0.01" min="0.1" max="0.99" value="{{ defaults.min_conf }}"
-                style="width:100%;margin-top:4px">
+              <input type="number" name="min_conf" step="0.01" min="0.1" max="0.99" value="{{ defaults.min_conf }}">
             </label>
             <label>
               <span class="muted-small">Max Detections/Frame</span>
-              <input type="number" name="max_det_per_frame" min="1" max="200" value="{{ defaults.max_det_per_frame }}"
-                style="width:100%;margin-top:4px">
+              <input type="number" name="max_det_per_frame" min="1" max="200" value="{{ defaults.max_det_per_frame }}">
             </label>
             <label>
               <span class="muted-small">Min Box Area (px²)</span>
-              <input type="number" name="min_box_area" min="0" value="{{ defaults.min_box_area }}"
-                style="width:100%;margin-top:4px">
+              <input type="number" name="min_box_area" min="0" value="{{ defaults.min_box_area }}">
             </label>
             <label>
               <span class="muted-small">Class Filter (IDs)</span>
-              <input type="text" name="class_filter" placeholder="e.g., 2,5,7" value="{{ defaults.class_filter }}"
-                style="width:100%;margin-top:4px">
+              <input type="text" name="class_filter" placeholder="e.g., 2,5,7" value="{{ defaults.class_filter }}">
               <span class="muted-small" style="font-size:10px">Empty = all classes</span>
             </label>
           </div>
         </div>
 
         <!-- Tracking Settings -->
-        <div style="margin-bottom:20px">
-          <h4 style="color:#8b949e;margin:0 0 12px 0;font-size:13px;border-bottom:1px solid #21262d;padding-bottom:6px">
-            🎯 Tracking Settings (ByteTrack)
-          </h4>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:12px">
+        <div class="mb-lg">
+          <h4 class="settings-section-title">🎯 Tracking Settings (ByteTrack)</h4>
+          <div class="form-grid-4col">
             <label>
               <span class="muted-small">Track Threshold</span>
               <input type="number" name="track_thresh" step="0.01" min="0.1" max="0.9"
-                value="{{ defaults.track_thresh }}" style="width:100%;margin-top:4px">
+                value="{{ defaults.track_thresh }}">
             </label>
             <label>
               <span class="muted-small">Match Threshold</span>
               <input type="number" name="match_thresh" step="0.01" min="0.1" max="0.99"
-                value="{{ defaults.match_thresh }}" style="width:100%;margin-top:4px">
+                value="{{ defaults.match_thresh }}">
             </label>
             <label>
               <span class="muted-small">Track Buffer (frames)</span>
-              <input type="number" name="track_buffer" min="1" max="120" value="{{ defaults.track_buffer }}"
-                style="width:100%;margin-top:4px">
+              <input type="number" name="track_buffer" min="1" max="120" value="{{ defaults.track_buffer }}">
             </label>
           </div>
         </div>
 
         <!-- Speed Settings -->
-        <div style="margin-bottom:20px">
-          <h4 style="color:#8b949e;margin:0 0 12px 0;font-size:13px;border-bottom:1px solid #21262d;padding-bottom:6px">
-            📏 Speed Calculation Settings
-          </h4>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:12px">
+        <div class="mb-lg">
+          <h4 class="settings-section-title">📏 Speed Calculation Settings</h4>
+          <div class="form-grid-4col">
             <label>
               <span class="muted-small">Smoothing Window (s)</span>
               <input type="number" name="smoothing_window_s" step="0.1" min="0.1" max="3.0"
-                value="{{ defaults.smoothing_window_s }}" style="width:100%;margin-top:4px">
+                value="{{ defaults.smoothing_window_s }}">
             </label>
             <label>
               <span class="muted-small">Max Speed (km/h)</span>
-              <input type="number" name="max_kph" min="10" max="300" value="{{ defaults.max_kph }}"
-                style="width:100%;margin-top:4px">
+              <input type="number" name="max_kph" min="10" max="300" value="{{ defaults.max_kph }}">
             </label>
             <label>
               <span class="muted-small">Min dt (s)</span>
-              <input type="number" name="min_dt_s" step="0.01" min="0.01" max="1.0" value="{{ defaults.min_dt_s }}"
-                style="width:100%;margin-top:4px">
+              <input type="number" name="min_dt_s" step="0.01" min="0.01" max="1.0" value="{{ defaults.min_dt_s }}">
             </label>
             <label>
               <span class="muted-small">Outlier Reject (km/h/s)</span>
               <input type="number" name="outlier_reject_kph_per_s" min="10" max="200"
-                value="{{ defaults.outlier_reject_kph_per_s }}" style="width:100%;margin-top:4px">
+                value="{{ defaults.outlier_reject_kph_per_s }}">
               <span class="muted-small" style="font-size:10px">Max acceleration</span>
             </label>
             <label>
               <span class="muted-small">Median Filter N</span>
-              <input type="number" name="median_filter_n" min="0" max="15" value="{{ defaults.median_filter_n }}"
-                style="width:100%;margin-top:4px">
+              <input type="number" name="median_filter_n" min="0" max="15" value="{{ defaults.median_filter_n }}">
               <span class="muted-small" style="font-size:10px">0 = disabled</span>
             </label>
             <label>
               <span class="muted-small">Jump Reject (m)</span>
-              <input type="number" name="jump_reject_m" min="1" max="50" value="{{ defaults.jump_reject_m }}"
-                style="width:100%;margin-top:4px">
+              <input type="number" name="jump_reject_m" min="1" max="50" value="{{ defaults.jump_reject_m }}">
             </label>
           </div>
         </div>
 
         <!-- Performance Settings -->
-        <div style="margin-bottom:20px">
-          <h4 style="color:#8b949e;margin:0 0 12px 0;font-size:13px;border-bottom:1px solid #21262d;padding-bottom:6px">
-            ⚡ Performance Settings
-          </h4>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:12px">
+        <div class="mb-lg">
+          <h4 class="settings-section-title">⚡ Performance Settings</h4>
+          <div class="form-grid-4col">
             <label>
               <span class="muted-small">Frame Skip</span>
-              <input type="number" name="frame_skip" min="1" max="10" value="{{ defaults.frame_skip }}"
-                style="width:100%;margin-top:4px">
+              <input type="number" name="frame_skip" min="1" max="10" value="{{ defaults.frame_skip }}">
               <span class="muted-small" style="font-size:10px">Process every Nth frame</span>
             </label>
             <label>
               <span class="muted-small">Resize Width (px)</span>
-              <input type="number" name="resize_width" min="0" max="1920" value="{{ defaults.resize_width }}"
-                style="width:100%;margin-top:4px">
+              <input type="number" name="resize_width" min="0" max="1920" value="{{ defaults.resize_width }}">
               <span class="muted-small" style="font-size:10px">0 = original size</span>
             </label>
           </div>
         </div>
 
         <!-- Trail Visualization Settings -->
-        <div>
-          <h4 style="color:#8b949e;margin:0 0 12px 0;font-size:13px;border-bottom:1px solid #21262d;padding-bottom:6px">
-            🎨 Trail Visualization (Motion Trails)
-          </h4>
-          <p class="muted-small" style="margin:0 0 12px 0;font-size:11px">
-            Draw motion history trails behind tracked objects. Disabled by default.
-          </p>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:12px">
-            <label style="display:flex;align-items:center;gap:8px">
+        <div class="mb-lg">
+          <h4 class="settings-section-title">🎨 Trail Visualization (Motion Trails)</h4>
+          <p class="muted-small mb-sm" style="font-size:11px">Draw motion history trails behind tracked objects.
+            Disabled by default.</p>
+          <div class="form-grid-4col">
+            <label class="flex-center" style="gap:8px">
               <input type="checkbox" name="enable_trails" {% if defaults.enable_trails %}checked{% endif %}>
               <span class="muted-small">Enable Trails</span>
             </label>
             <label>
               <span class="muted-small">Trail Duration (s)</span>
               <input type="number" name="trail_seconds" step="0.1" min="0.1" max="10"
-                value="{{ defaults.trail_seconds }}" style="width:100%;margin-top:4px">
-              <span class="muted-small" style="font-size:10px">History time window</span>
+                value="{{ defaults.trail_seconds }}">
             </label>
             <label>
               <span class="muted-small">Max Points</span>
-              <input type="number" name="trail_max_points" min="2" max="200" value="{{ defaults.trail_max_points }}"
-                style="width:100%;margin-top:4px">
-              <span class="muted-small" style="font-size:10px">Safety cap per track</span>
+              <input type="number" name="trail_max_points" min="2" max="200" value="{{ defaults.trail_max_points }}">
             </label>
             <label>
               <span class="muted-small">Stride</span>
-              <input type="number" name="trail_stride" min="1" max="10" value="{{ defaults.trail_stride }}"
-                style="width:100%;margin-top:4px">
-              <span class="muted-small" style="font-size:10px">Draw every Nth point</span>
+              <input type="number" name="trail_stride" min="1" max="10" value="{{ defaults.trail_stride }}">
             </label>
             <label>
               <span class="muted-small">Thickness (px)</span>
-              <input type="number" name="trail_thickness" min="1" max="10" value="{{ defaults.trail_thickness }}"
-                style="width:100%;margin-top:4px">
+              <input type="number" name="trail_thickness" min="1" max="10" value="{{ defaults.trail_thickness }}">
             </label>
             <label>
               <span class="muted-small">Alpha (opacity)</span>
-              <input type="number" name="trail_alpha" step="0.05" min="0.1" max="1.0" value="{{ defaults.trail_alpha }}"
-                style="width:100%;margin-top:4px">
+              <input type="number" name="trail_alpha" step="0.05" min="0.1" max="1.0"
+                value="{{ defaults.trail_alpha }}">
             </label>
-            <label style="display:flex;align-items:center;gap:8px">
+            <label class="flex-center" style="gap:8px">
               <input type="checkbox" name="trail_fade" {% if defaults.trail_fade %}checked{% endif %}>
               <span class="muted-small">Fade Effect</span>
-              <span class="muted-small" style="font-size:10px">(older = dimmer)</span>
             </label>
             <label>
               <span class="muted-small">Anchor Point</span>
-              <select name="trail_anchor"
-                style="width:100%;margin-top:4px;padding:6px;background:#161b22;border:1px solid #30363d;border-radius:6px;color:#c9d1d9">
+              <select name="trail_anchor">
                 <option value="bottom_center" {% if defaults.trail_anchor=='bottom_center' %}selected{% endif %}>Bottom
                   Center</option>
                 <option value="center" {% if defaults.trail_anchor=='center' %}selected{% endif %}>Center</option>
@@ -261,61 +260,52 @@
         </div>
 
         <!-- Violation Detection Settings -->
-        <div style="margin-top:20px">
-          <h4 style="color:#8b949e;margin:0 0 12px 0;font-size:13px;border-bottom:1px solid #21262d;padding-bottom:6px">
-            🚨 Speed Violation Detection
-          </h4>
-          <p class="muted-small" style="margin:0 0 12px 0;font-size:11px">
-            Capture snapshots and flag vehicles exceeding a speed threshold. Disabled by default.
-          </p>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:12px">
-            <label style="display:flex;align-items:center;gap:8px">
+        <div>
+          <h4 class="settings-section-title">🚨 Speed Violation Detection</h4>
+          <p class="muted-small mb-sm" style="font-size:11px">Capture snapshots and flag vehicles exceeding a speed
+            threshold. Disabled by default.</p>
+          <div class="form-grid-4col">
+            <label class="flex-center" style="gap:8px">
               <input type="checkbox" name="violation_enabled" {% if defaults.violation_enabled %}checked{% endif %}>
               <span class="muted-small">Enable Violations</span>
             </label>
             <label>
               <span class="muted-small">Speed Threshold (km/h)</span>
               <input type="number" name="violation_speed_kmh" step="1" min="10" max="300"
-                value="{{ defaults.violation_speed_kmh }}" style="width:100%;margin-top:4px">
-              <span class="muted-small" style="font-size:10px">Flag if >= this speed</span>
+                value="{{ defaults.violation_speed_kmh }}">
             </label>
             <label>
               <span class="muted-small">Min Duration (s)</span>
               <input type="number" name="violation_min_seconds" step="0.1" min="0.1" max="5.0"
-                value="{{ defaults.violation_min_seconds }}" style="width:100%;margin-top:4px">
-              <span class="muted-small" style="font-size:10px">Above threshold for this long</span>
+                value="{{ defaults.violation_min_seconds }}">
             </label>
             <label>
               <span class="muted-small">Cooldown (s)</span>
               <input type="number" name="violation_cooldown_seconds" step="0.5" min="0.5" max="30.0"
-                value="{{ defaults.violation_cooldown_seconds }}" style="width:100%;margin-top:4px">
-              <span class="muted-small" style="font-size:10px">Between captures for same track</span>
+                value="{{ defaults.violation_cooldown_seconds }}">
             </label>
             <label>
               <span class="muted-small">Capture Mode</span>
-              <select name="violation_capture_mode"
-                style="width:100%;margin-top:4px;padding:6px;background:#161b22;border:1px solid #30363d;border-radius:6px;color:#c9d1d9">
+              <select name="violation_capture_mode">
                 <option value="peak_speed" {% if defaults.violation_capture_mode=='peak_speed' %}selected{% endif %}>
                   Peak Speed</option>
                 <option value="first_crossing" {% if defaults.violation_capture_mode=='first_crossing' %}selected{%
-                  endif %}>
-                  First Crossing</option>
+                  endif %}>First Crossing</option>
               </select>
-              <span class="muted-small" style="font-size:10px">When to capture snapshot</span>
             </label>
-            <label style="display:flex;align-items:center;gap:8px">
+            <label class="flex-center" style="gap:8px">
               <input type="checkbox" name="violation_save_full_frame" {% if defaults.violation_save_full_frame
                 %}checked{% endif %}>
               <span class="muted-small">Save Full Frame</span>
             </label>
-            <label style="display:flex;align-items:center;gap:8px">
+            <label class="flex-center" style="gap:8px">
               <input type="checkbox" name="violation_save_crop" {% if defaults.violation_save_crop %}checked{% endif %}>
               <span class="muted-small">Save Cropped Image</span>
             </label>
             <label>
               <span class="muted-small">Crop Padding (px)</span>
               <input type="number" name="violation_crop_padding_px" min="0" max="100"
-                value="{{ defaults.violation_crop_padding_px }}" style="width:100%;margin-top:4px">
+                value="{{ defaults.violation_crop_padding_px }}">
             </label>
           </div>
         </div>
@@ -330,9 +320,9 @@
   </form>
 </section>
 
-<section class="card" style="background:#0d1117;border:1px solid #238636">
-  <h3 style="margin:0 0 10px 0;font-size:14px;color:#238636">💡 Calibration Tips</h3>
-  <ul style="margin:0;padding-left:20px;color:#8b949e;font-size:13px;line-height:1.8">
+<section class="card alert-box success">
+  <h3 class="text-success mb-sm" style="font-size:14px">💡 Calibration Tips</h3>
+  <ul class="instructions-list">
     <li>Choose 4 points that form a <strong>rectangle on the road plane</strong> (e.g., lane marking corners)</li>
     <li>Measure the real-world distances between points in <strong>meters</strong></li>
     <li>Order points <strong>consistently clockwise</strong> starting from top-left</li>
@@ -351,36 +341,20 @@
     const appliedDiv = document.getElementById('optimization-applied');
     const debugEl = document.getElementById('video-debug');
 
-    // Debug helper
-    function debug(msg) {
-      console.log('[LongVideo]', msg);
-      if (debugEl) debugEl.textContent = msg;
-    }
-
+    function debug(msg) { console.log('[LongVideo]', msg); if (debugEl) debugEl.textContent = msg; }
     debug('Script loaded ✓');
 
-    // Threshold in seconds (10 minutes)
     const LONG_VIDEO_THRESHOLD = 10 * 60;
-    // Fallback: assume videos over 50MB are potentially "long"
     const LARGE_FILE_SIZE_MB = 50;
 
-    // Form field references for optimization
     const fields = {
       frame_skip: () => document.querySelector('input[name="frame_skip"]'),
       resize_width: () => document.querySelector('input[name="resize_width"]'),
       enable_trails: () => document.querySelector('input[name="enable_trails"]'),
       violation_enabled: () => document.querySelector('input[name="violation_enabled"]'),
     };
+    const OPTIMIZED_VALUES = { frame_skip: 3, resize_width: 640, enable_trails: false, violation_enabled: false };
 
-    // Optimized values for long videos
-    const OPTIMIZED_VALUES = {
-      frame_skip: 3,
-      resize_width: 640,
-      enable_trails: false,
-      violation_enabled: false,
-    };
-
-    // Format duration as human-readable
     function formatDuration(seconds) {
       const hrs = Math.floor(seconds / 3600);
       const mins = Math.floor((seconds % 3600) / 60);
@@ -390,7 +364,6 @@
       return `${secs}s`;
     }
 
-    // Show the optimization panel
     function showOptimizationPanel(message) {
       durationText.textContent = message;
       presetDiv.style.display = 'block';
@@ -399,104 +372,80 @@
       skipBtn.style.display = '';
     }
 
-    // Check video duration when file is selected
     fileInput.addEventListener('change', function () {
       debug('File selected...');
       const file = this.files[0];
-      if (!file) {
-        presetDiv.style.display = 'none';
-        debug('No file');
-        return;
-      }
+      if (!file) { presetDiv.style.display = 'none'; debug('No file'); return; }
 
       const fileSizeMB = file.size / (1024 * 1024);
       debug(`File: ${file.name} (${fileSizeMB.toFixed(1)} MB) - Reading metadata...`);
 
-      // For large files, show panel immediately based on file size
-      // (don't wait for potentially slow metadata loading)
       if (fileSizeMB >= LARGE_FILE_SIZE_MB) {
         debug(`Large file! Showing optimization panel immediately.`);
         showOptimizationPanel(`Large file detected (${fileSizeMB.toFixed(0)} MB) — Optimizations recommended`);
-        return; // Skip metadata reading for large files
+        return;
       }
 
-      // For smaller files, try to read duration
       const video = document.createElement('video');
       video.preload = 'metadata';
-
-      // Timeout fallback - if metadata doesn't load in 2 seconds
-      const timeout = setTimeout(function () {
-        debug(`Timeout reading metadata`);
-        presetDiv.style.display = 'none';
-      }, 2000);
+      const timeout = setTimeout(() => { debug(`Timeout reading metadata`); presetDiv.style.display = 'none'; }, 2000);
 
       video.onloadedmetadata = function () {
         clearTimeout(timeout);
         URL.revokeObjectURL(video.src);
         const duration = video.duration;
         debug(`Duration: ${formatDuration(duration)} (${duration}s), threshold: ${LONG_VIDEO_THRESHOLD}s`);
-
         if (duration >= LONG_VIDEO_THRESHOLD) {
           showOptimizationPanel(`Video duration: ${formatDuration(duration)} — Processing may take a while`);
         } else if (fileSizeMB >= LARGE_FILE_SIZE_MB) {
-          // Short but large file - still might benefit from optimizations
           showOptimizationPanel(`Large file (${fileSizeMB.toFixed(0)} MB) — Consider optimizations for faster processing`);
-        } else {
-          presetDiv.style.display = 'none';
-        }
+        } else { presetDiv.style.display = 'none'; }
       };
-
       video.onerror = function () {
         clearTimeout(timeout);
-        console.log('Could not read video metadata, using file size fallback');
-        // Can't determine duration, use file size as fallback
-        if (fileSizeMB >= LARGE_FILE_SIZE_MB) {
-          showOptimizationPanel(`Large file detected (${fileSizeMB.toFixed(0)} MB) — Processing may take a while`);
-        } else {
-          presetDiv.style.display = 'none';
-        }
+        if (fileSizeMB >= LARGE_FILE_SIZE_MB) showOptimizationPanel(`Large file detected (${fileSizeMB.toFixed(0)} MB) — Processing may take a while`);
+        else presetDiv.style.display = 'none';
       };
-
       video.src = URL.createObjectURL(file);
     });
 
-    // Apply optimizations button
     applyBtn.addEventListener('click', function () {
-      // Open the advanced settings details if closed
       const details = document.querySelector('details');
       if (details) details.open = true;
-
-      // Apply optimized values
-      const frameSkip = fields.frame_skip();
-      if (frameSkip) frameSkip.value = OPTIMIZED_VALUES.frame_skip;
-
-      const resizeWidth = fields.resize_width();
-      if (resizeWidth) resizeWidth.value = OPTIMIZED_VALUES.resize_width;
-
-      const enableTrails = fields.enable_trails();
-      if (enableTrails) enableTrails.checked = OPTIMIZED_VALUES.enable_trails;
-
-      const violationEnabled = fields.violation_enabled();
-      if (violationEnabled) violationEnabled.checked = OPTIMIZED_VALUES.violation_enabled;
-
-      // Show confirmation
+      const fs = fields.frame_skip(); if (fs) fs.value = OPTIMIZED_VALUES.frame_skip;
+      const rw = fields.resize_width(); if (rw) rw.value = OPTIMIZED_VALUES.resize_width;
+      const et = fields.enable_trails(); if (et) et.checked = OPTIMIZED_VALUES.enable_trails;
+      const ve = fields.violation_enabled(); if (ve) ve.checked = OPTIMIZED_VALUES.violation_enabled;
       appliedDiv.style.display = 'block';
       applyBtn.style.display = 'none';
       skipBtn.style.display = 'none';
-
-      // Highlight changed fields briefly
-      [frameSkip, resizeWidth].forEach(el => {
+      [fs, rw].forEach(el => {
         if (el) {
           el.style.transition = 'background 0.3s';
-          el.style.background = '#1a3d1a';
+          el.style.background = 'var(--success-bg, #1a3d1a)';
           setTimeout(() => { el.style.background = ''; }, 1500);
         }
       });
     });
 
-    // Skip optimizations button
-    skipBtn.addEventListener('click', function () {
-      presetDiv.style.display = 'none';
+    skipBtn.addEventListener('click', function () { presetDiv.style.display = 'none'; });
+
+    // Init drag & drop zone
+    initDropZone(document.getElementById('speed-drop-zone'), fileInput);
+
+    // Time estimate
+    fileInput.addEventListener('change', function () {
+      const file = this.files[0];
+      const estEl = document.getElementById('speed-time-estimate');
+      const estTime = document.getElementById('speed-est-time');
+      if (!file) { estEl.style.display = 'none'; return; }
+      const sizeMB = file.size / (1024 * 1024);
+      // Rough estimate: ~2 sec per MB for CPU, faster for GPU
+      const seconds = Math.round(sizeMB * 2);
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      estTime.textContent = mins > 0 ? `~${mins}m ${secs}s` : `~${secs}s`;
+      estEl.style.display = '';
     });
   })();
 </script>

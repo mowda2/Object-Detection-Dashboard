@@ -1,378 +1,466 @@
 <!doctype html>
-<html>
+<html lang="en" data-theme="dark">
 
 <head>
   <meta charset="utf-8">
-  <title>YOLO Control Panel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Traffic Analysis Dashboard{% endblock %}</title>
+
+  <!-- Favicon (inline SVG speedometer) -->
+  <link rel="icon" type="image/svg+xml"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='30' fill='%230f172a' stroke='%233b82f6' stroke-width='3'/><path d='M32 12a20 20 0 00-17.32 30h34.64A20 20 0 0032 12z' fill='none' stroke='%233b82f6' stroke-width='2.5'/><line x1='32' y1='34' x2='44' y2='20' stroke='%23ef4444' stroke-width='2.5' stroke-linecap='round'/><circle cx='32' cy='34' r='3' fill='%23f1f5f9'/></svg>">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Traffic Analysis Dashboard">
+  <meta property="og:description"
+    content="Real-time and offline vehicle detection, speed estimation, and traffic analytics powered by YOLO.">
+  <meta property="og:image"
+    content="{{ url_for('static', filename='style.css', _external=True)|replace('style.css','og-preview.png') }}">
+  <meta property="og:type" content="website">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <style>
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px
-    }
-
-    .badges {
-      display: flex;
-      gap: 10px;
-      align-items: center
-    }
-
-    .badge {
-      background: #1e2630;
-      border: 1px solid #2c3642;
-      border-radius: 999px;
-      padding: 4px 10px;
-      font-size: 12px
-    }
-
-    .switch {
-      display: inline-flex;
-      gap: 6px;
-      align-items: center;
-      font-size: 13px
-    }
-
-    .switch input {
-      transform: scale(1.1)
-    }
-
-    .thumbs {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 12px
-    }
-
-    .thumb {
-      background: #101419;
-      border-radius: 10px;
-      padding: 8px
-    }
-
-    .thumb h4 {
-      margin: 0 0 6px 0;
-      font-size: 12px;
-      color: #9fb3c8
-    }
-
-    .thumb img {
-      width: 100%;
-      border-radius: 8px;
-      background: #000
-    }
-
-    .logbox {
-      background: #0b0f14;
-      border: 1px solid #1e2630;
-      border-radius: 10px;
-      padding: 10px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      height: 220px;
-      overflow: auto;
-      white-space: pre-wrap
-    }
-
-    .muted-small {
-      color: #8ea1b3;
-      font-size: 12px
-    }
-
-    .row-tight {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      flex-wrap: wrap
-    }
-
-    .pill.sel {
-      background: #2a3442;
-      border-color: #40516a
-    }
-
-    /* ▼ Fancy Navigate dropdown */
-    .navmenu {
-      position: relative;
-      display: inline-block
-    }
-
-    .navbtn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 14px;
-      border-radius: 999px;
-      font-weight: 600;
-      font-size: 14px;
-      background: linear-gradient(180deg, #2a3442 0%, #1f2937 100%);
-      border: 1px solid #3a4b63;
-      color: #e7f0ff;
-      box-shadow: 0 6px 22px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(255, 255, 255, .04);
-      cursor: pointer;
-      transition: transform .06s ease, box-shadow .12s ease, background .12s ease;
-    }
-
-    .navbtn:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 10px 28px rgba(0, 0, 0, .45), inset 0 0 0 1px rgba(255, 255, 255, .06);
-    }
-
-    .navbtn:active {
-      transform: translateY(0);
-    }
-
-    .navbtn .dot {
-      width: 8px;
-      height: 8px;
-      background: #8dd0ff;
-      border-radius: 999px;
-      box-shadow: 0 0 0 3px rgba(141, 208, 255, .15)
-    }
-
-    .navbtn .caret {
-      transition: transform .15s ease;
-      opacity: .9
-    }
-
-    .navmenu.open .navbtn .caret {
-      transform: rotate(180deg)
-    }
-
-    .menu {
-      position: absolute;
-      right: 0;
-      top: 44px;
-      min-width: 240px;
-      padding: 8px;
-      background: #111826;
-      border: 1px solid #2c3642;
-      border-radius: 12px;
-      box-shadow: 0 20px 50px rgba(0, 0, 0, .55);
-      z-index: 20;
-      animation: fadeIn .12s ease;
-    }
-
-    .menu a {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 9px 10px;
-      border-radius: 8px;
-      color: #dbeafe;
-      text-decoration: none;
-      font-size: 14px;
-    }
-
-    .menu a:hover {
-      background: #223046
-    }
-
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: translateY(-4px)
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0)
-      }
-    }
-  </style>
+  {% block head_extra %}{% endblock %}
 </head>
 
 <body>
-  <div class="container">
+  <!-- Toast container -->
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
 
-    <!-- shared header + nav (Navigate only) -->
-    <div class="header">
-      <h1 style="margin:0">YOLO Control Panel</h1>
-      <div class="navmenu" id="navwrap">
-        <button class="navbtn" id="navbtn" aria-haspopup="true" aria-expanded="false">
-          <span class="dot" aria-hidden="true"></span>
-          Navigate
-          <svg class="caret" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M6 9l6 6 6-6" stroke="#cfe3ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+  <!-- ═══ Sticky Top Navigation ═══ -->
+  <nav class="top-nav" role="navigation" aria-label="Main navigation">
+    <div class="top-nav-inner">
+      <a href="/" class="nav-brand">
+        <span class="nav-brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 6v6l4 2" />
+            <path d="M16.24 7.76l-4.24 5.66" />
+          </svg>
+        </span>
+        Traffic Analysis Dashboard
+      </a>
+
+      <button class="nav-hamburger" id="nav-hamburger" aria-label="Toggle navigation menu">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round">
+          <line x1="3" y1="6" x2="21" y2="6" />
+          <line x1="3" y1="12" x2="21" y2="12" />
+          <line x1="3" y1="18" x2="21" y2="18" />
+        </svg>
+      </button>
+
+      <div class="nav-links" id="nav-links">
+        <a href="/" {% if request.path=='/' %}class="active" {% endif %}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+            <polyline points="9 22 9 12 15 12 15 22" />
+          </svg>
+          Home
+        </a>
+        <a href="/speed" {% if request.path.startswith('/speed') %}class="active" {% endif %}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a10 10 0 100 20 10 10 0 000-20z" />
+            <path d="M12 6v6l4 2" />
+          </svg>
+          Speed Analysis
+        </a>
+        <a href="/roboflow" {% if request.path.startswith('/roboflow') %}class="active" {% endif %}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path
+              d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+          </svg>
+          Roboflow
+        </a>
+        <a href="/library" {% if request.path=='/library' %}class="active" {% endif %}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+          </svg>
+          Library
+          <span class="nav-dot" id="nav-library-dot"></span>
+        </a>
+
+        <!-- Theme toggle -->
+        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light/dark theme" title="Toggle theme">
+          <svg id="theme-icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+          </svg>
+          <svg id="theme-icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+            <circle cx="12" cy="12" r="5" />
+            <line x1="12" y1="1" x2="12" y2="3" />
+            <line x1="12" y1="21" x2="12" y2="23" />
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+            <line x1="1" y1="12" x2="3" y2="12" />
+            <line x1="21" y1="12" x2="23" y2="12" />
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
           </svg>
         </button>
-        <div class="menu" id="navmenu" hidden>
-          <a href="/"><span>🏠</span> Control Panel</a>
-          <a href="/grid"><span>🧩</span> Detection Multi-View</a>
-          <a href="/grid_raw"><span>🎥</span> Raw Camera Multi-View</a>
-          <a href="/offline"><span>🧪</span> Offline Analysis</a>
-          <a href="/roboflow"><span>🔗</span> Roboflow (Hosted)</a>
-          <a href="/speed"><span>🚗</span> Speed (Calibrated)</a>
-          <a href="/library"><span>🗂️</span> Library</a>
-        </div>
       </div>
     </div>
+  </nav>
 
-    <!-- page-specific content goes here -->
+  <!-- ═══ Main Content ═══ -->
+  <main class="container page-fade" role="main">
+    {% block breadcrumb %}{% endblock %}
     {% block content %}
-    <div class="card">
-      <div class="row-tight" style="justify-content:space-between;">
-        <div class="badges">
-          <span class="badge" id="badge-cams">Cameras: 0</span>
-          <span class="badge" id="badge-topics">Overlay topics: 0</span>
-          <span class="badge" id="badge-launch">Launch: stopped</span>
-        </div>
-        <div class="muted-small" id="badge-health">CPU/Mem: —</div>
-      </div>
+    <!-- ═══ Dashboard Home Page ═══ -->
+    <div class="page-header page-header-center">
+      <h1 class="page-title page-title-lg">Traffic Analysis Dashboard</h1>
+      <p class="page-subtitle page-subtitle-center">
+        Real-time vehicle detection, calibrated speed estimation, and traffic analytics powered by YOLO.
+      </p>
     </div>
 
-    <section class="card">
-      <h2>Camera Discovery</h2>
-      <div id="cam-list" class="row"></div>
-      <div class="row-tight">
-        <button id="btn-refresh" class="btn">Refresh Cameras</button>
-        <label class="switch"><input id="auto-refresh" type="checkbox"> auto-refresh</label>
-        <span class="muted-small" id="last-cam-scan"></span>
-      </div>
-    </section>
+    <!-- Feature Cards Grid -->
+    <div class="dashboard-grid">
+      <a href="/speed" class="feature-card tilt" style="animation-delay:0.05s">
+        <div class="feature-card-icon feature-icon-orange">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a10 10 0 100 20 10 10 0 000-20z" />
+            <path d="M12 6v6l4 2" />
+          </svg>
+        </div>
+        <h3 class="feature-card-title">Speed Analysis</h3>
+        <p class="feature-card-desc">Measure calibrated vehicle speeds using homography-based road-plane projection.</p>
+        <span class="feature-card-arrow">Get started →</span>
+      </a>
 
-    <section class="card">
-      <h2>Launch Manager</h2>
-      <div class="row">
-        <label>Selected indices (optional):</label>
-        <input id="indices" type="text" placeholder="leave empty for auto">
-        <button id="btn-start" class="btn primary">Start</button>
-        <button id="btn-stop" class="btn danger">Stop</button>
-        <span id="status" class="status"></span>
-      </div>
-      <div class="muted">Tip: leave indices empty to auto-detect all openable cameras.</div>
-    </section>
+      <a href="/roboflow" class="feature-card tilt" style="animation-delay:0.1s">
+        <div class="feature-card-icon feature-icon-green">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path
+              d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+          </svg>
+        </div>
+        <h3 class="feature-card-title">Roboflow Inference</h3>
+        <p class="feature-card-desc">Run cloud-hosted object detection using Roboflow's inference API on your videos.
+        </p>
+        <span class="feature-card-arrow">Get started →</span>
+      </a>
 
-    <section class="card">
-      <div class="row-tight" style="justify-content:space-between;">
-        <h2 style="margin:0">Available YOLO overlay topics</h2>
-        <div class="row-tight">
-          <label>Thumb width:</label><input id="tw" value="320" style="width:70px">
-          <label>FPS:</label><input id="tfps" value="2" style="width:60px">
-          <label>JPEG Q:</label><input id="tq" value="70" style="width:60px">
-          <button class="btn" onclick="renderThumbs()">Apply</button>
+      <a href="/library" class="feature-card tilt" style="animation-delay:0.15s">
+        <div class="feature-card-icon feature-icon-blue">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+          </svg>
+        </div>
+        <h3 class="feature-card-title">Analysis Library</h3>
+        <p class="feature-card-desc">Browse, search, and manage all your saved analysis results, videos, and exports.
+        </p>
+        <span class="feature-card-arrow">Browse library →</span>
+      </a>
+
+      <a href="/grid" class="feature-card tilt" style="animation-delay:0.2s">
+        <div class="feature-card-icon feature-icon-pink">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" />
+            <rect x="14" y="3" width="7" height="7" />
+            <rect x="14" y="14" width="7" height="7" />
+            <rect x="3" y="14" width="7" height="7" />
+          </svg>
+        </div>
+        <h3 class="feature-card-title">Detection Multi-View</h3>
+        <p class="feature-card-desc">Live multi-camera view showing YOLO detection overlay streams side by side.</p>
+        <span class="feature-card-arrow">Open viewer →</span>
+      </a>
+
+      <a href="/grid_raw" class="feature-card tilt" style="animation-delay:0.25s">
+        <div class="feature-card-icon feature-icon-cyan">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="23 7 16 12 23 17 23 7" />
+            <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+          </svg>
+        </div>
+        <h3 class="feature-card-title">Raw Camera View</h3>
+        <p class="feature-card-desc">View raw camera feeds without detection overlays for monitoring and debugging.</p>
+        <span class="feature-card-arrow">Open viewer →</span>
+      </a>
+    </div>
+
+    <!-- Quick System Status (Control Panel) -->
+    <div class="mt-lg">
+      <h2 class="mb-md">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+          <line x1="8" y1="21" x2="16" y2="21" />
+          <line x1="12" y1="17" x2="12" y2="21" />
+        </svg>
+        System Control Panel
+      </h2>
+
+      <div class="card card-static">
+        <div class="flex-between">
+          <div class="flex-center" style="flex-wrap:wrap">
+            <span class="badge" id="badge-cams">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
+                <circle cx="12" cy="13" r="4" />
+              </svg>
+              Cameras: 0
+            </span>
+            <span class="badge" id="badge-topics">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18" />
+                <line x1="7" y1="2" x2="7" y2="22" />
+                <line x1="17" y1="2" x2="17" y2="22" />
+                <line x1="2" y1="12" x2="22" y2="12" />
+              </svg>
+              Overlay topics: 0
+            </span>
+            <span class="badge" id="badge-launch">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <polygon points="10 8 16 12 10 16 10 8" />
+              </svg>
+              Launch: stopped
+            </span>
+          </div>
+          <div class="muted-small" id="badge-health">CPU/Mem: —</div>
         </div>
       </div>
-      <div id="thumbs" class="thumbs"></div>
-    </section>
 
-    <section class="card">
-      <div class="row-tight" style="justify-content:space-between;">
-        <h2 style="margin:0">Launch Logs</h2>
-        <div class="row-tight">
-          <button class="btn" onclick="loadLogs()">Refresh</button>
-          <label class="switch"><input id="auto-logs" type="checkbox" checked> auto</label>
+      <section class="card card-static">
+        <h2>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px">
+            <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
+            <circle cx="12" cy="13" r="4" />
+          </svg>
+          Camera Discovery
+        </h2>
+        <!-- Skeleton placeholder for camera list -->
+        <div id="cam-list" class="row">
+          <div class="skeleton skeleton-pill"></div>
+          <div class="skeleton skeleton-pill"></div>
+          <div class="skeleton skeleton-pill"></div>
         </div>
-      </div>
-      <div id="logs" class="logbox">—</div>
-    </section>
+        <div class="row-tight mt-md">
+          <button id="btn-refresh" class="btn" aria-label="Refresh camera list">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10" />
+              <polyline points="1 20 1 14 7 14" />
+              <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+            </svg>
+            Refresh Cameras
+          </button>
+          <label class="switch"><input id="auto-refresh" type="checkbox"> auto-refresh</label>
+          <span class="muted-small" id="last-cam-scan"></span>
+        </div>
+      </section>
 
-    <section class="card">
+      <section class="card card-static">
+        <h2>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px">
+            <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+          Launch Manager
+        </h2>
+        <div class="row">
+          <label class="toolbar-inline-label" style="flex:1;min-width:200px">
+            <span style="white-space:nowrap">Selected indices:</span>
+            <input id="indices" type="text" placeholder="leave empty for auto" style="flex:1">
+          </label>
+          <button id="btn-start" class="btn primary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="5 3 19 12 5 21 5 3" />
+            </svg>
+            Start
+          </button>
+          <button id="btn-stop" class="btn danger">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="4" y="4" width="16" height="16" rx="2" />
+            </svg>
+            Stop
+          </button>
+          <span id="status" class="status"></span>
+        </div>
+        <div class="muted-small mt-sm">Tip: leave indices empty to auto-detect all openable cameras.</div>
+      </section>
+
+      <section class="card card-static">
+        <div class="flex-between">
+          <h2 class="mb-0">Available YOLO Overlay Topics</h2>
+          <div class="row-tight">
+            <label class="toolbar-inline-label"><span class="muted-small">Width:</span><input id="tw" value="320"
+                style="width:70px"></label>
+            <label class="toolbar-inline-label"><span class="muted-small">FPS:</span><input id="tfps" value="2"
+                class="narrow" style="width:56px"></label>
+            <label class="toolbar-inline-label"><span class="muted-small">JPEG Q:</span><input id="tq" value="70"
+                class="narrow" style="width:56px"></label>
+            <button class="btn" onclick="renderThumbs()">Apply</button>
+          </div>
+        </div>
+        <!-- Skeleton placeholders for thumbnails -->
+        <div id="thumbs" class="thumbs mt-md">
+          <div class="skeleton skeleton-thumb"></div>
+          <div class="skeleton skeleton-thumb"></div>
+          <div class="skeleton skeleton-thumb"></div>
+        </div>
+      </section>
+
+      <section class="card card-static">
+        <div class="flex-between">
+          <h2 class="mb-0">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+            </svg>
+            Launch Logs
+          </h2>
+          <div class="row-tight">
+            <button class="btn" onclick="loadLogs()">Refresh</button>
+            <label class="switch"><input id="auto-logs" type="checkbox" checked> auto</label>
+          </div>
+        </div>
+        <div id="logs" class="logbox mt-md">—</div>
+      </section>
+
+      <!-- Keyboard shortcuts help button -->
+      <button class="btn btn-ghost" id="kbd-help-btn" style="margin-top:8px" title="Keyboard shortcuts (?)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
+        Keyboard Shortcuts
+      </button>
+    </div>
+
+    <script>
       async function fetchJSON(url, opts) {
-      const r = await fetch(url, opts || {});
-      if (!r.ok) throw new Error(await r.text());
-      return r.json();
+        const r = await fetch(url, opts || {});
+        if (!r.ok) throw new Error(await r.text());
+        return r.json();
       }
 
       /* ---------- Cameras ---------- */
       async function refreshCams() {
-      const data = await fetchJSON('/api/cameras');
-      const wrap = document.getElementById('cam-list');
-      wrap.innerHTML = '';
-      if (!data.present.length) {
-      wrap.innerHTML = '<div class="muted">No openable cameras found.</div>';
-      } else {
-      data.present.forEach(i => {
-      const div = document.createElement('div');
-      div.className = 'pill';
-      div.textContent = '/dev/video' + i;
-      div.onclick = () => toggleIndex(i, div);
-      wrap.appendChild(div);
-      });
-      }
-      document.getElementById('last-cam-scan').textContent = 'Last scan: ' + new Date().toLocaleTimeString();
+        const data = await fetchJSON('/api/cameras');
+        const wrap = document.getElementById('cam-list');
+        wrap.innerHTML = '';
+        if (!data.present.length) {
+          wrap.innerHTML = '<div class="muted">No openable cameras found.</div>';
+        } else {
+          data.present.forEach(i => {
+            const div = document.createElement('div');
+            div.className = 'pill';
+            div.textContent = '/dev/video' + i;
+            div.onclick = () => toggleIndex(i, div);
+            wrap.appendChild(div);
+          });
+        }
+        document.getElementById('last-cam-scan').textContent = 'Last scan: ' + new Date().toLocaleTimeString();
       }
       function toggleIndex(i, el) {
-      const input = document.getElementById('indices');
-      const cur = input.value.split(',').map(s => s.trim()).filter(Boolean);
-      const s = String(i);
-      const pos = cur.indexOf(s);
-      if (pos >= 0) { cur.splice(pos, 1); el.classList.remove('sel'); }
-      else { cur.push(s); el.classList.add('sel'); }
-      input.value = cur.join(',');
+        const input = document.getElementById('indices');
+        const cur = input.value.split(',').map(s => s.trim()).filter(Boolean);
+        const s = String(i);
+        const pos = cur.indexOf(s);
+        if (pos >= 0) { cur.splice(pos, 1); el.classList.remove('sel'); }
+        else { cur.push(s); el.classList.add('sel'); }
+        input.value = cur.join(',');
       }
 
       /* ---------- Topics & thumbnails ---------- */
       let cachedTopics = [];
       async function refreshTopics() {
-      const data = await fetchJSON('/api/topics');
-      cachedTopics = data.topics || [];
-      document.getElementById('badge-topics').textContent = 'Overlay topics: ' + cachedTopics.length;
-      renderThumbs();
+        const data = await fetchJSON('/api/topics');
+        cachedTopics = data.topics || [];
+        document.getElementById('badge-topics').textContent = 'Overlay topics: ' + cachedTopics.length;
+        renderThumbs();
       }
       function renderThumbs() {
-      const w = +document.getElementById('tw').value || 320;
-      const fps = +document.getElementById('tfps').value || 2;
-      const q = +document.getElementById('tq').value || 70;
-      const grid = document.getElementById('thumbs');
-      grid.innerHTML = '';
-      cachedTopics.forEach(t => {
-      const card = document.createElement('div');
-      card.className = 'thumb';
-      const h = document.createElement('h4');
-      h.textContent = t;
-      const img = document.createElement('img');
-      img.src = `/stream?topic=${encodeURIComponent(t)}&w=${w}&fps=${fps}&q=${q}`;
-      img.addEventListener('error', () => setTimeout(() => {
-      img.src = `/stream?topic=${encodeURIComponent(t)}&w=${w}&fps=${fps}&q=${q}&_=${Date.now()}`
-      }, 800));
-      card.appendChild(h);
-      card.appendChild(img);
-      grid.appendChild(card);
-      });
+        const w = +document.getElementById('tw').value || 320;
+        const fps = +document.getElementById('tfps').value || 2;
+        const q = +document.getElementById('tq').value || 70;
+        const grid = document.getElementById('thumbs');
+        grid.innerHTML = '';
+        if (cachedTopics.length === 0) {
+          grid.innerHTML = '<div class="muted">No overlay topics available.</div>';
+          return;
+        }
+        cachedTopics.forEach(t => {
+          const card = document.createElement('div');
+          card.className = 'thumb';
+          const h = document.createElement('h4');
+          h.textContent = t;
+          const img = document.createElement('img');
+          img.src = `/stream?topic=${encodeURIComponent(t)}&w=${w}&fps=${fps}&q=${q}`;
+          img.addEventListener('error', () => setTimeout(() => {
+            img.src = `/stream?topic=${encodeURIComponent(t)}&w=${w}&fps=${fps}&q=${q}&_=${Date.now()}`
+          }, 800));
+          card.appendChild(h);
+          card.appendChild(img);
+          grid.appendChild(card);
+        });
       }
 
       /* ---------- Launch ---------- */
       async function startLaunch() {
-      const idx = document.getElementById('indices').value;
-      const body = new URLSearchParams({ indices: idx });
-      try {
-      const r = await fetchJSON('/api/start', { method: 'POST', body });
-      document.getElementById('status').textContent = 'Running: ' + JSON.stringify(r.status);
-      await refreshAll();
-      } catch (e) { alert(e); }
+        const idx = document.getElementById('indices').value;
+        const body = new URLSearchParams({ indices: idx });
+        try {
+          const r = await fetchJSON('/api/start', { method: 'POST', body });
+          document.getElementById('status').textContent = 'Running: ' + JSON.stringify(r.status);
+          await refreshAll();
+        } catch (e) { showToast(String(e), 'error'); }
       }
       async function stopLaunch() {
-      await fetchJSON('/api/stop', { method: 'POST' });
-      document.getElementById('status').textContent = 'Stopped';
-      await refreshAll();
+        await fetchJSON('/api/stop', { method: 'POST' });
+        document.getElementById('status').textContent = 'Stopped';
+        await refreshAll();
       }
 
       /* ---------- Logs ---------- */
       async function loadLogs() {
-      const r = await fetchJSON('/api/logs?n=300');
-      const box = document.getElementById('logs');
-      box.textContent = (r.lines || []).join('\n') || '—';
-      box.scrollTop = box.scrollHeight;
+        const r = await fetchJSON('/api/logs?n=300');
+        const box = document.getElementById('logs');
+        const text = (r.lines || []).join('\n') || '—';
+        box.innerHTML = colorizeLog(text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'));
+        box.scrollTop = box.scrollHeight;
       }
 
       /* ---------- Status / Health ---------- */
       async function refreshStatusBar() {
-      const s = await fetchJSON('/api/status');
-      document.getElementById('badge-cams').textContent = 'Cameras: ' + s.num_cameras;
-      document.getElementById('badge-topics').textContent = 'Overlay topics: ' + s.num_topics;
-      document.getElementById('badge-launch').textContent = 'Launch: ' + (s.launch.running ? 'running' : 'stopped');
+        const s = await fetchJSON('/api/status');
+        document.getElementById('badge-cams').textContent = 'Cameras: ' + s.num_cameras;
+        document.getElementById('badge-topics').textContent = 'Overlay topics: ' + s.num_topics;
+        document.getElementById('badge-launch').textContent = 'Launch: ' + (s.launch.running ? 'running' : 'stopped');
       }
       async function refreshHealth() {
-      try {
-      const h = await fetchJSON('/api/health');
-      document.getElementById('badge-health').textContent = `CPU load(1m): ${h.load1.toFixed(2)} · Mem used:
-      ${h.mem_used_pct}%`;
-      } catch { }
+        try {
+          const h = await fetchJSON('/api/health');
+          document.getElementById('badge-health').textContent = `CPU load(1m): ${h.load1.toFixed(2)} · Mem used: ${h.mem_used_pct}%`;
+        } catch { }
       }
 
       /* ---------- Orchestration ---------- */
       async function refreshAll() {
-      await Promise.all([refreshCams(), refreshTopics(), refreshStatusBar(), refreshHealth(), loadLogs()]);
+        await Promise.all([refreshCams(), refreshTopics(), refreshStatusBar(), refreshHealth(), loadLogs()]);
       }
 
       document.getElementById('btn-refresh').onclick = refreshCams;
@@ -381,38 +469,312 @@
 
       let camTimer = null, logTimer = null;
       document.getElementById('auto-refresh').addEventListener('change', (e) => {
-      if (e.target.checked) camTimer = setInterval(refreshCams, 10000);
-      else { clearInterval(camTimer); camTimer = null; }
+        if (e.target.checked) camTimer = setInterval(refreshCams, 10000);
+        else { clearInterval(camTimer); camTimer = null; }
       });
       document.getElementById('auto-logs').addEventListener('change', (e) => {
-      if (e.target.checked) logTimer = setInterval(loadLogs, 2000);
-      else { clearInterval(logTimer); logTimer = null; }
+        if (e.target.checked) logTimer = setInterval(loadLogs, 2000);
+        else { clearInterval(logTimer); logTimer = null; }
       });
 
       refreshAll();
       camTimer = setInterval(refreshCams, 10000);
       logTimer = setInterval(loadLogs, 2000);
       setInterval(() => { refreshStatusBar(); refreshTopics(); refreshHealth(); }, 5000);
-      </script>
-      {% endblock %}
+    </script>
+    {% endblock %}
+  </main>
+
+  <!-- ═══ Footer ═══ -->
+  <footer class="site-footer" role="contentinfo">
+    <div class="footer-left">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 6v6l4 2" />
+        <path d="M16.24 7.76l-4.24 5.66" />
+      </svg>
+      Traffic Analysis Dashboard
+    </div>
+    <div class="footer-right">
+      <span>YOLO</span>
+      <span class="footer-dot"></span>
+      <span>OpenCV</span>
+      <span class="footer-dot"></span>
+      <span>Flask</span>
+      <span class="footer-dot"></span>
+      <span>ByteTrack</span>
+      <span class="footer-dot"></span>
+      <span>v1.0</span>
+    </div>
+  </footer>
+
+  <!-- ═══ Back to Top Button ═══ -->
+  <button class="back-to-top" id="back-to-top" aria-label="Scroll to top" title="Back to top">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="18 15 12 9 6 15" />
+    </svg>
+  </button>
+
+  <!-- ═══ Confirmation Modal ═══ -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal" role="dialog" aria-modal="true">
+      <h3 class="modal-title" id="modal-title">Confirm</h3>
+      <p class="modal-body" id="modal-body">Are you sure?</p>
+      <div class="modal-actions">
+        <button class="btn" id="modal-cancel">Cancel</button>
+        <button class="btn danger" id="modal-confirm">Confirm</button>
+      </div>
+    </div>
   </div>
 
-  <!-- Dropdown toggler (shared by all pages extending this template) -->
+  <!-- ═══ Keyboard Shortcuts Help ═══ -->
+  <div class="kbd-help-overlay" id="kbd-help-overlay">
+    <div class="kbd-help">
+      <div class="kbd-help-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
+        Keyboard Shortcuts
+        <button class="kbd-help-close" id="kbd-help-close" aria-label="Close">✕</button>
+      </div>
+      <div class="kbd-row"><span class="kbd-row-desc">Toggle theme</span><kbd>T</kbd></div>
+      <div class="kbd-row"><span class="kbd-row-desc">Show keyboard shortcuts</span><kbd>?</kbd></div>
+      <div class="kbd-row"><span class="kbd-row-desc">Go home</span><kbd>G</kbd> then <kbd>H</kbd></div>
+      <div class="kbd-row"><span class="kbd-row-desc">Scroll to top</span><kbd>↑</kbd><span
+          style="font-size:11px;color:var(--text-muted);margin-left:4px">(Home key)</span></div>
+      <div class="kbd-row"><span class="kbd-row-desc">Close overlay / modal</span><kbd>Esc</kbd></div>
+      <div class="kbd-row"><span class="kbd-row-desc">Play / Pause video</span><kbd>Space</kbd></div>
+      <div class="kbd-row"><span class="kbd-row-desc">Step frame back / forward</span><kbd>←</kbd> <kbd>→</kbd></div>
+    </div>
+  </div>
+
+  <!-- ═══ Global Scripts ═══ -->
   <script>
+    /* ── Mobile Nav Toggle ── */
     (function () {
-      const wrap = document.getElementById('navwrap');
-      const btn = document.getElementById('navbtn');
-      const menu = document.getElementById('navmenu');
-      if (!wrap || !btn || !menu) return;
-
-      const open = () => { wrap.classList.add('open'); btn.setAttribute('aria-expanded', 'true'); menu.hidden = false; };
-      const close = () => { wrap.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); menu.hidden = true; };
-
-      btn.addEventListener('click', (e) => { e.stopPropagation(); menu.hidden ? open() : close(); });
-      document.addEventListener('click', () => close());
-      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+      const hamburger = document.getElementById('nav-hamburger');
+      const navLinks = document.getElementById('nav-links');
+      if (!hamburger || !navLinks) return;
+      hamburger.addEventListener('click', (e) => { e.stopPropagation(); navLinks.classList.toggle('open'); });
+      document.addEventListener('click', (e) => { if (!navLinks.contains(e.target) && e.target !== hamburger) navLinks.classList.remove('open'); });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') navLinks.classList.remove('open'); });
     })();
+
+    /* ── Theme Toggle ── */
+    (function () {
+      const btn = document.getElementById('theme-toggle');
+      const moonIcon = document.getElementById('theme-icon-moon');
+      const sunIcon = document.getElementById('theme-icon-sun');
+      if (!btn) return;
+      function applyTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('theme', theme);
+        if (moonIcon && sunIcon) {
+          moonIcon.style.display = theme === 'dark' ? '' : 'none';
+          sunIcon.style.display = theme === 'light' ? '' : 'none';
+        }
+      }
+      const saved = localStorage.getItem('theme') || 'dark';
+      applyTheme(saved);
+      btn.addEventListener('click', () => {
+        const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+        applyTheme(cur === 'dark' ? 'light' : 'dark');
+      });
+    })();
+
+    /* ── Toast System ── */
+    function showToast(message, type = 'success', duration = 4000) {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+      const icons = { success: '✓', error: '✕', warning: '⚠' };
+      const toast = document.createElement('div');
+      toast.className = 'toast ' + type;
+      toast.innerHTML = `<span class="toast-icon">${icons[type] || 'ℹ'}</span><span class="toast-msg">${message}</span>`;
+      toast.onclick = () => removeToast(toast);
+      container.appendChild(toast);
+      // Auto-dismiss
+      setTimeout(() => removeToast(toast), duration);
+      // Max 5 toasts
+      while (container.children.length > 5) container.removeChild(container.firstChild);
+    }
+
+    function removeToast(toast) {
+      if (!toast || toast.classList.contains('removing')) return;
+      toast.classList.add('removing');
+      toast.addEventListener('animationend', () => toast.remove());
+    }
+
+    /* ── Stat Count-Up Animation ── */
+    function animateCountUp(el) {
+      const text = el.textContent.trim();
+      const match = text.match(/^([\d.]+)/);
+      if (!match) return;
+      const target = parseFloat(match[1]);
+      const suffix = text.slice(match[1].length);
+      const isFloat = match[1].includes('.');
+      const decimals = isFloat ? (match[1].split('.')[1] || '').length : 0;
+      const duration = 800;
+      const start = performance.now();
+      function step(now) {
+        const t = Math.min((now - start) / duration, 1);
+        const ease = 1 - Math.pow(1 - t, 3);
+        const val = target * ease;
+        el.textContent = (isFloat ? val.toFixed(decimals) : Math.round(val)) + suffix;
+        if (t < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('.stat-value').forEach(el => animateCountUp(el));
+    });
+
+    /* ── Feature Card Tilt Effect ── */
+    document.querySelectorAll('.feature-card.tilt').forEach(card => {
+      card.addEventListener('mousemove', e => {
+        const rect = card.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width - 0.5;
+        const y = (e.clientY - rect.top) / rect.height - 0.5;
+        card.style.transform = `translateY(-4px) perspective(800px) rotateX(${-y * 6}deg) rotateY(${x * 6}deg)`;
+      });
+      card.addEventListener('mouseleave', () => {
+        card.style.transform = '';
+      });
+    });
+
+    /* ── Table scroll overflow detection ── */
+    document.querySelectorAll('.table-scroll-wrapper').forEach(wrap => {
+      function check() {
+        wrap.classList.toggle('has-overflow', wrap.scrollWidth > wrap.clientWidth);
+      }
+      check();
+      new ResizeObserver(check).observe(wrap);
+    });
+
+    /* ── Confirmation Modal (showConfirm returns Promise) ── */
+    window.showConfirm = function (title, message) {
+      return new Promise((resolve) => {
+        const overlay = document.getElementById('modal-overlay');
+        const titleEl = document.getElementById('modal-title');
+        const bodyEl = document.getElementById('modal-body');
+        const cancelBtn = document.getElementById('modal-cancel');
+        const confirmBtn = document.getElementById('modal-confirm');
+        titleEl.textContent = title || 'Confirm';
+        bodyEl.textContent = message || 'Are you sure?';
+        overlay.classList.add('open');
+        function cleanup(result) {
+          overlay.classList.remove('open');
+          cancelBtn.removeEventListener('click', onCancel);
+          confirmBtn.removeEventListener('click', onConfirm);
+          resolve(result);
+        }
+        function onCancel() { cleanup(false); }
+        function onConfirm() { cleanup(true); }
+        cancelBtn.addEventListener('click', onCancel);
+        confirmBtn.addEventListener('click', onConfirm);
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(false); }, { once: true });
+      });
+    };
+
+    /* ── Back to Top Button ── */
+    (function () {
+      const btn = document.getElementById('back-to-top');
+      if (!btn) return;
+      window.addEventListener('scroll', () => {
+        btn.classList.toggle('visible', window.scrollY > 400);
+      }, { passive: true });
+      btn.addEventListener('click', () => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    })();
+
+    /* ── Keyboard Shortcuts Help ── */
+    (function () {
+      const overlay = document.getElementById('kbd-help-overlay');
+      const closeBtn = document.getElementById('kbd-help-close');
+      const openBtn = document.getElementById('kbd-help-btn');
+      if (!overlay) return;
+      function openHelp() { overlay.classList.add('open'); }
+      function closeHelp() { overlay.classList.remove('open'); }
+      if (closeBtn) closeBtn.addEventListener('click', closeHelp);
+      if (openBtn) openBtn.addEventListener('click', openHelp);
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) closeHelp(); });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+        if (e.key === '?' || e.key === '/') { e.preventDefault(); overlay.classList.contains('open') ? closeHelp() : openHelp(); }
+        if (e.key === 'Escape') {
+          closeHelp();
+          document.getElementById('modal-overlay')?.classList.remove('open');
+        }
+        if (e.key === 't' || e.key === 'T') {
+          if (!e.ctrlKey && !e.metaKey) document.getElementById('theme-toggle')?.click();
+        }
+      });
+    })();
+
+    /* ── Nav Notification Dot (Library) ── */
+    (function () {
+      const dot = document.getElementById('nav-library-dot');
+      if (!dot) return;
+      const lastCount = parseInt(sessionStorage.getItem('library-count') || '0', 10);
+      fetch('/api/library').then(r => r.json()).then(data => {
+        const count = (data.items || []).length;
+        if (count > lastCount && lastCount > 0) {
+          dot.classList.add('active');
+        }
+        sessionStorage.setItem('library-count', String(count));
+      }).catch(() => { });
+      // Clear dot when visiting library
+      if (window.location.pathname === '/library') {
+        dot.classList.remove('active');
+      }
+    })();
+
+    /* ── Copy to Clipboard Helper ── */
+    window.copyToClipboard = function (text, btn) {
+      navigator.clipboard.writeText(text).then(() => {
+        if (btn) { btn.classList.add('copied'); btn.textContent = '✓ Copied!'; setTimeout(() => { btn.classList.remove('copied'); btn.textContent = '📋 Copy'; }, 1500); }
+        showToast('Copied to clipboard!', 'success', 2000);
+      }).catch(() => showToast('Failed to copy', 'error'));
+    };
+
+    /* ── Log Colorizer ── */
+    window.colorizeLog = function (text) {
+      return text.replace(/^(.*?(ERROR|FATAL|CRITICAL).*)$/gm, '<span class="log-error">$1</span>')
+        .replace(/^(.*?(WARN|WARNING).*)$/gm, '<span class="log-warn">$1</span>')
+        .replace(/^(.*?INFO.*)$/gm, '<span class="log-info">$1</span>')
+        .replace(/^(.*?(OK|SUCCESS|DONE|COMPLETE).*)$/gm, '<span class="log-success">$1</span>');
+    };
+
+    /* ── File Drop Zone Initializer ── */
+    window.initDropZone = function (zoneEl, fileInput) {
+      if (!zoneEl || !fileInput) return;
+      const nameEl = zoneEl.querySelector('.file-drop-zone-name');
+      ['dragenter', 'dragover'].forEach(ev => {
+        zoneEl.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); zoneEl.classList.add('dragover'); });
+      });
+      ['dragleave', 'drop'].forEach(ev => {
+        zoneEl.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); zoneEl.classList.remove('dragover'); });
+      });
+      zoneEl.addEventListener('drop', (e) => {
+        const files = e.dataTransfer.files;
+        if (files.length) { fileInput.files = files; fileInput.dispatchEvent(new Event('change', { bubbles: true })); }
+      });
+      fileInput.addEventListener('change', () => {
+        if (nameEl && fileInput.files[0]) {
+          nameEl.textContent = fileInput.files[0].name;
+          nameEl.style.display = 'block';
+        }
+      });
+    };
   </script>
+
+  {% block scripts_extra %}{% endblock %}
 </body>
 
 </html>

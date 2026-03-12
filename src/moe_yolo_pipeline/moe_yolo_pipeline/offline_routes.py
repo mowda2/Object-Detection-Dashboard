@@ -1,6 +1,6 @@
 import os, uuid, threading, hashlib, json, shutil
 from typing import Dict
-from flask import Blueprint, render_template, request, jsonify, send_file, abort
+from flask import Blueprint, render_template, request, jsonify, send_file, abort, redirect, url_for
 
 from .offline_analyzer import run_offline_speed_job
 from .library_db import LibraryDB
@@ -48,7 +48,7 @@ def _analysis_id(file_hash: str, params_hash: str) -> str:
 # ---------- pages ----------
 @offline_bp.route("/offline")
 def offline_page():
-    return render_template("offline.html")
+    return redirect("/speed/", code=302)
 
 @offline_bp.route("/library")
 def library_page():

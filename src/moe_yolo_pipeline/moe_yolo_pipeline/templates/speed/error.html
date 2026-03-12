@@ -1,31 +1,48 @@
 {% extends "index.html" %}
+{% block title %}Error — Traffic Analysis Dashboard{% endblock %}
+{% block breadcrumb %}
+<nav class="breadcrumb" aria-label="Breadcrumb">
+  <a href="/">Home</a>
+  <span class="breadcrumb-sep">›</span>
+  <a href="/speed">Speed Analysis</a>
+  <span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Error</span>
+</nav>
+{% endblock %}
 {% block content %}
 <section class="card">
-  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+  <div class="flex-between">
     <div>
-      <h2 style="margin:0">🚗 Speed Analysis</h2>
-      <p class="muted-small" style="margin:4px 0 0 0">Job: {{ job_id }}</p>
+      <h2 style="margin:0">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px">
+          <path d="M12 2a10 10 0 100 20 10 10 0 000-20z" />
+          <path d="M12 6v6l4 2" />
+        </svg>
+        Speed Analysis
+      </h2>
+      <p class="muted-small mt-xs">Job: <code>{{ job_id }}</code></p>
     </div>
-    <div style="display:flex;gap:8px">
+    <div class="row-tight">
       <a href="{{ back_url }}" class="btn">← Back</a>
-      <a href="{{ url_for('speed.speed_index') }}" class="btn">New Job</a>
+      <a href="{{ url_for('speed.speed_index') }}" class="btn primary">New Job</a>
     </div>
   </div>
 </section>
 
-<section class="card" style="background:#1a1520;border:1px solid #f85149">
-  <div style="display:flex;align-items:flex-start;gap:12px">
-    <span style="color:#f85149;font-size:24px">⚠</span>
+<section class="card alert-box danger">
+  <div class="flex-center">
+    <span style="font-size:28px" aria-hidden="true">⚠</span>
     <div>
-      <strong style="color:#f85149;font-size:16px">Analysis Error</strong>
-      <p style="margin:8px 0 0 0;color:#c9d1d9">{{ error }}</p>
+      <strong class="text-danger" style="font-size:17px">Analysis Error</strong>
+      <p class="mt-xs" style="color:var(--text-primary)">{{ error }}</p>
     </div>
   </div>
 </section>
 
-<section class="card" style="background:#0d1117">
+<section class="card" style="background:var(--bg-surface)">
   <h3>Troubleshooting</h3>
-  <ul style="margin:12px 0 0 0;padding-left:20px;color:#8b949e;line-height:1.8">
+  <ul class="instructions-list mt-sm">
     <li>Ensure the video file is a valid MP4/MOV</li>
     <li>Verify calibration points are correctly entered</li>
     <li>Check that the YOLO model file (yolo11n.pt) exists in the project root</li>

@@ -1,12 +1,32 @@
 {% extends "index.html" %}
+{% block title %}Roboflow Results — Traffic Analysis Dashboard{% endblock %}
+{% block breadcrumb %}
+<nav class="breadcrumb" aria-label="Breadcrumb">
+  <a href="/">Home</a>
+  <span class="breadcrumb-sep">›</span>
+  <a href="/roboflow">Roboflow</a>
+  <span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Results</span>
+</nav>
+{% endblock %}
 {% block content %}
-<section class="card">
-  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+<section class="card card-static">
+  <div class="flex-between">
     <div>
-      <h2 style="margin:0">🔗 Roboflow Results</h2>
-      <p class="muted-small" style="margin:4px 0 0 0">Job: {{ job_id }} • {{ meta.filename or 'Unknown' }}</p>
+      <h2 style="margin:0">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px">
+          <path
+            d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+        </svg>
+        Roboflow Results
+      </h2>
+      <p class="muted-small mt-xs">Job: <code>{{ job_id }}</code>
+        <button class="copy-btn" onclick="copyToClipboard('{{ job_id }}', this)">📋 Copy</button>
+        • {{ meta.filename or 'Unknown' }}
+      </p>
     </div>
-    <div style="display:flex;gap:8px">
+    <div class="row-tight">
       <a href="/roboflow/download/{{ job_id }}/csv" class="btn">📥 CSV</a>
       <a href="/roboflow/download/{{ job_id }}/json" class="btn">📥 Summary</a>
       <a href="/roboflow" class="btn">← Back</a>
@@ -15,8 +35,8 @@
 </section>
 
 <!-- Video Player Section -->
-<section class="card" style="padding:0;overflow:hidden">
-  <div id="rf-viewer" style="position:relative;background:#000">
+<section class="card video-player-wrap" style="padding:0">
+  <div class="video-inner" style="position:relative;background:#000">
     <img id="rf-frame-img" style="width:100%;display:block" alt="Frame">
 
     <!-- Overlay for loading/error states -->
@@ -29,12 +49,11 @@
   </div>
 
   <!-- Controls -->
-  <div style="padding:12px;background:#161b22;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-    <!-- Playback controls -->
-    <div style="display:flex;gap:6px">
-      <button id="rf-prev" class="btn" title="Previous frame">⏮</button>
-      <button id="rf-play" class="btn primary" title="Play/Pause">▶️</button>
-      <button id="rf-next" class="btn" title="Next frame">⏭</button>
+  <div class="video-controls-bar">
+    <div class="row-tight">
+      <button id="rf-prev" class="frame-step-btn" title="Previous frame (←)">⏮</button>
+      <button id="rf-play" class="btn primary" title="Play/Pause (Space)">▶️</button>
+      <button id="rf-next" class="frame-step-btn" title="Next frame (→)">⏭</button>
     </div>
 
     <!-- Seek slider -->
@@ -48,10 +67,9 @@
     </div>
 
     <!-- Speed control -->
-    <div style="display:flex;align-items:center;gap:6px">
-      <label class="muted-small">Speed:</label>
-      <select id="rf-speed"
-        style="padding:4px;background:#0d1117;border:1px solid #30363d;border-radius:4px;color:#fff">
+    <div class="row-tight">
+      <span class="muted-small">Speed:</span>
+      <select id="rf-speed">
         <option value="0.25">0.25x</option>
         <option value="0.5">0.5x</option>
         <option value="1" selected>1x</option>
@@ -65,7 +83,7 @@
 <!-- Stats Section -->
 <section class="card">
   <h3>Processing Summary</h3>
-  <div style="display:flex;gap:20px;flex-wrap:wrap">
+  <div class="row-tight" style="gap:12px">
     <div class="badge">Frames: <span id="rf-stat-frames">{{ meta.total_frames or '-' }}</span></div>
     <div class="badge">Processed: <span id="rf-stat-processed">{{ meta.processed_frames or '-' }}</span></div>
     <div class="badge">API Calls: <span id="rf-stat-api">{{ meta.api_calls_made or '-' }}</span></div>
@@ -74,7 +92,7 @@
   </div>
 </section>
 
-<!-- Detections List (optional) -->
+<!-- Detections List -->
 <section class="card" id="rf-detections-section" style="display:none">
   <h3>Detections for Frame <span id="rf-det-frame">-</span></h3>
   <div id="rf-detections-list" style="max-height:200px;overflow-y:auto">
@@ -105,7 +123,6 @@
     let baseFps = {{ meta.fps or 30 }
   };
 
-  // Load job status to get available frames
   async function loadJobStatus() {
     try {
       const res = await fetch('/roboflow/status/' + jobId);
@@ -127,16 +144,11 @@
       frameTotalEl.textContent = availableFrames.length;
       seekSlider.max = availableFrames.length - 1;
 
-      // Update stats
       document.getElementById('rf-stat-processed').textContent = data.processed_frames || '-';
       document.getElementById('rf-stat-api').textContent = data.api_calls_made || '-';
 
-      // Load detections
       await loadDetections();
-
-      // Show first frame
       showFrame(0);
-
     } catch (err) {
       overlayText.textContent = 'Error: ' + err.message;
     }
@@ -147,28 +159,19 @@
       const res = await fetch('/roboflow/detections/' + jobId);
       const data = await res.json();
       if (data.ok && data.detections) {
-        data.detections.forEach(d => {
-          allDetections[d.frame] = d.detections;
-        });
+        data.detections.forEach(d => { allDetections[d.frame] = d.detections; });
       }
-    } catch (err) {
-      console.warn('Could not load detections:', err);
-    }
+    } catch (err) { console.warn('Could not load detections:', err); }
   }
 
   function showFrame(index) {
     if (index < 0 || index >= availableFrames.length) return;
-
     currentFrameIndex = index;
     const frameNum = availableFrames[index];
-
     frameImg.src = '/roboflow/frame/' + jobId + '/' + frameNum;
     frameNumEl.textContent = index + 1;
     seekSlider.value = index;
-
-    // Update detections list
     updateDetectionsList(frameNum);
-
     overlay.style.display = 'none';
   }
 
@@ -177,53 +180,38 @@
     const section = document.getElementById('rf-detections-section');
     const list = document.getElementById('rf-detections-list');
     const frameSpan = document.getElementById('rf-det-frame');
-
     frameSpan.textContent = frameNum;
 
     if (dets.length === 0) {
       list.innerHTML = '<p class="muted-small">No detections</p>';
     } else {
-      let html = '<div style="display:flex;flex-wrap:wrap;gap:8px">';
-      dets.forEach(d => {
-        html += `<div class="badge">${d.class} (${(d.confidence * 100).toFixed(1)}%)</div>`;
-      });
+      let html = '<div class="row-tight" style="gap:8px">';
+      dets.forEach(d => { html += '<div class="badge">' + d.class + ' (' + (d.confidence * 100).toFixed(1) + '%)</div>'; });
       html += '</div>';
       list.innerHTML = html;
     }
-
     section.style.display = 'block';
   }
 
   function nextFrame() {
-    if (currentFrameIndex < availableFrames.length - 1) {
-      showFrame(currentFrameIndex + 1);
-    } else if (isPlaying) {
-      stopPlayback();
-    }
+    if (currentFrameIndex < availableFrames.length - 1) showFrame(currentFrameIndex + 1);
+    else if (isPlaying) stopPlayback();
   }
 
   function prevFrame() {
-    if (currentFrameIndex > 0) {
-      showFrame(currentFrameIndex - 1);
-    }
+    if (currentFrameIndex > 0) showFrame(currentFrameIndex - 1);
   }
 
   function startPlayback() {
     if (availableFrames.length === 0) return;
     isPlaying = true;
     playBtn.textContent = '⏸️';
-
-    // Calculate interval based on speed and frame skip
     const frameSkip = {{ meta.frame_skip or 1 }
   };
   const effectiveFps = (baseFps / frameSkip) * playSpeed;
   const interval = Math.max(50, 1000 / effectiveFps);
-
   playInterval = setInterval(() => {
-    if (currentFrameIndex >= availableFrames.length - 1) {
-      stopPlayback();
-      return;
-    }
+    if (currentFrameIndex >= availableFrames.length - 1) { stopPlayback(); return; }
     nextFrame();
   }, interval);
   }
@@ -231,69 +219,31 @@
   function stopPlayback() {
     isPlaying = false;
     playBtn.textContent = '▶️';
-    if (playInterval) {
-      clearInterval(playInterval);
-      playInterval = null;
-    }
+    if (playInterval) { clearInterval(playInterval); playInterval = null; }
   }
 
   function togglePlayback() {
-    if (isPlaying) {
-      stopPlayback();
-    } else {
-      startPlayback();
-    }
+    if (isPlaying) stopPlayback(); else startPlayback();
   }
 
-  // Event listeners
   playBtn.addEventListener('click', togglePlayback);
   prevBtn.addEventListener('click', () => { stopPlayback(); prevFrame(); });
   nextBtn.addEventListener('click', () => { stopPlayback(); nextFrame(); });
+  seekSlider.addEventListener('input', () => { stopPlayback(); showFrame(parseInt(seekSlider.value)); });
+  speedSelect.addEventListener('change', () => { playSpeed = parseFloat(speedSelect.value); if (isPlaying) { stopPlayback(); startPlayback(); } });
 
-  seekSlider.addEventListener('input', () => {
-    stopPlayback();
-    showFrame(parseInt(seekSlider.value));
-  });
-
-  speedSelect.addEventListener('change', () => {
-    playSpeed = parseFloat(speedSelect.value);
-    if (isPlaying) {
-      stopPlayback();
-      startPlayback();
-    }
-  });
-
-  // Keyboard shortcuts
   document.addEventListener('keydown', (e) => {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
     switch (e.key) {
-      case ' ':
-        e.preventDefault();
-        togglePlayback();
-        break;
-      case 'ArrowLeft':
-        stopPlayback();
-        prevFrame();
-        break;
-      case 'ArrowRight':
-        stopPlayback();
-        nextFrame();
-        break;
+      case ' ': e.preventDefault(); togglePlayback(); break;
+      case 'ArrowLeft': stopPlayback(); prevFrame(); break;
+      case 'ArrowRight': stopPlayback(); nextFrame(); break;
     }
   });
 
-  // Image error handling
-  frameImg.addEventListener('error', () => {
-    overlay.style.display = 'flex';
-    overlayText.textContent = 'Frame not available';
-  });
+  frameImg.addEventListener('error', () => { overlay.style.display = 'flex'; overlayText.textContent = 'Frame not available'; });
+  frameImg.addEventListener('load', () => { overlay.style.display = 'none'; });
 
-  frameImg.addEventListener('load', () => {
-    overlay.style.display = 'none';
-  });
-
-  // Initialize
   loadJobStatus();
 }) ();
 </script>

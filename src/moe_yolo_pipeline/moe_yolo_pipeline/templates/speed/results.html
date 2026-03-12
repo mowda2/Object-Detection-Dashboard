@@ -1,12 +1,31 @@
 {% extends "index.html" %}
+{% block title %}Speed Results — Traffic Analysis Dashboard{% endblock %}
+{% block breadcrumb %}
+<nav class="breadcrumb" aria-label="Breadcrumb">
+  <a href="/">Home</a>
+  <span class="breadcrumb-sep">›</span>
+  <a href="/speed">Speed Analysis</a>
+  <span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Results</span>
+</nav>
+{% endblock %}
 {% block content %}
-<section class="card">
-  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+<section class="card card-static">
+  <div class="flex-between" style="flex-wrap:wrap;gap:10px">
     <div>
-      <h2 style="margin:0">🚗 Speed Analysis Results</h2>
-      <p class="muted-small" style="margin:4px 0 0 0">Job: {{ job_id }}</p>
+      <h2 class="mb-0">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px">
+          <path d="M12 2a10 10 0 100 20 10 10 0 000-20z" />
+          <path d="M12 6v6l4 2" />
+        </svg>
+        Speed Analysis Results
+      </h2>
+      <p class="muted-small mt-xs">Job: <code id="job-id-code">{{ job_id }}</code>
+        <button class="copy-btn" onclick="copyToClipboard('{{ job_id }}', this)">📋 Copy</button>
+      </p>
     </div>
-    <div style="display:flex;gap:8px">
+    <div class="row-tight">
       <a href="{{ url_for('speed.speed_artifact', job_id=job_id, filename='tracks_v1.csv') }}" class="btn">📥 CSV</a>
       <a href="{{ url_for('speed.speed_artifact', job_id=job_id, filename='summary.json') }}" class="btn" download>📥
         JSON</a>
@@ -19,7 +38,7 @@
 <!-- Stats Summary -->
 <section class="card">
   <h3>Analysis Summary</h3>
-  <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px">
+  <div class="stat-grid mt-md">
     <div class="stat-badge">
       <span class="stat-value">{{ summary.unique_tracks }}</span>
       <span class="stat-label">Unique Tracks</span>
@@ -37,45 +56,82 @@
       <span class="stat-label">Input FPS</span>
     </div>
     {% if summary.total_rejected_updates %}
-    <div class="stat-badge" style="border-color:#f0883e">
-      <span class="stat-value" style="color:#f0883e">{{ summary.total_rejected_updates }}</span>
+    <div class="stat-badge" style="border-color:var(--warning)">
+      <span class="stat-value" style="color:var(--warning)">{{ summary.total_rejected_updates }}</span>
       <span class="stat-label">Rejected Updates</span>
     </div>
     {% endif %}
   </div>
 </section>
 
+<!-- Charts Section -->
+<section class="card">
+  <h3 class="mb-md">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px">
+      <line x1="18" y1="20" x2="18" y2="10" />
+      <line x1="12" y1="20" x2="12" y2="4" />
+      <line x1="6" y1="20" x2="6" y2="14" />
+    </svg>
+    Speed Distribution
+  </h3>
+  <div class="chart-row">
+    <div class="chart-container">
+      <canvas id="chart-histogram" aria-label="Speed distribution histogram"></canvas>
+    </div>
+    <div class="chart-container">
+      <canvas id="chart-class-breakdown" aria-label="Class breakdown chart"></canvas>
+    </div>
+  </div>
+</section>
+
 <!-- Video Player -->
 <section class="card" style="padding:0;overflow:hidden">
-  <div style="background:#000;position:relative">
-    <video controls style="width:100%;display:block" preload="metadata">
+  <div class="video-player-wrap">
+    <video id="result-video" controls playsinline preload="metadata">
       <source src="{{ url_for('speed.speed_artifact', job_id=job_id, filename='output.mp4') }}" type="video/mp4">
       Your browser does not support the video tag.
     </video>
   </div>
-  <div style="padding:12px;background:#161b22">
-    <p class="muted-small" style="margin:0">
-      Annotated output video with speed overlays. Use video controls to play/pause.
+  <div class="video-controls-bar">
+    <div class="row-tight">
+      <span class="muted-small">Playback:</span>
+      <button class="playback-rate-btn" data-rate="0.25">0.25×</button>
+      <button class="playback-rate-btn" data-rate="0.5">0.5×</button>
+      <button class="playback-rate-btn active" data-rate="1">1×</button>
+      <button class="playback-rate-btn" data-rate="2">2×</button>
+    </div>
+    <div class="row-tight">
+      <button class="frame-step-btn" id="frame-back" title="Step back 1 frame">⏪ Frame</button>
+      <button class="frame-step-btn" id="frame-fwd" title="Step forward 1 frame">Frame ⏩</button>
+    </div>
+    <p class="muted-small mb-0">
+      Annotated output with speed overlays. Use ←/→ for frame stepping.
     </p>
   </div>
 </section>
 
 <!-- Speed Violations Section -->
 {% if summary.violations and summary.violations.enabled %}
-{% set border_color = '#f85149' if summary.violations.count > 0 else '#238636' %}
-<section class="card" style="border:1px solid {{ border_color }}">
-  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+{% set is_danger = summary.violations.count > 0 %}
+<section class="card {% if is_danger %}alert-box danger{% else %}alert-box success{% endif %}">
+  <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:16px">
     <div>
-      {% set heading_color = '#f85149' if summary.violations.count > 0 else '#238636' %}
-      <h3 style="margin:0;color:{{ heading_color }}">
-        🚨 Speed Violations
+      <h3 class="mb-0" style="color:var({% if is_danger %}--danger{% else %}--success{% endif %})">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px">
+          <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          <line x1="12" y1="9" x2="12" y2="13" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
+        Speed Violations
       </h3>
-      <p class="muted-small" style="margin:4px 0 0 0">
+      <p class="muted-small mt-xs">
         Threshold: {{ summary.violations.threshold_kmh }} km/h | Mode: {{ summary.violations.capture_mode }}
       </p>
     </div>
-    {% if summary.violations.count > 0 %}
-    <div style="display:flex;gap:8px">
+    {% if is_danger %}
+    <div class="row-tight">
       <a href="{{ url_for('speed.speed_artifact', job_id=job_id, filename='violations/violations.json') }}" class="btn"
         download>📥 JSON</a>
       <a href="{{ url_for('speed.speed_artifact', job_id=job_id, filename='violations/violations.csv') }}"
@@ -84,48 +140,45 @@
     {% endif %}
   </div>
 
-  {% if summary.violations.count == 0 %}
-  <div style="text-align:center;padding:24px;background:#0d1117;border-radius:8px">
+  {% if not is_danger %}
+  <div class="empty-state" style="padding:24px">
     <span style="font-size:32px">✅</span>
-    <p style="margin:12px 0 0 0;color:#8b949e">No speed violations detected</p>
+    <p class="muted-small mt-sm">No speed violations detected</p>
   </div>
   {% else %}
-  <div class="stat-badge" style="border-color:#f85149;margin-bottom:16px">
-    <span class="stat-value" style="color:#f85149">{{ summary.violations.count }}</span>
+  <div class="stat-badge mb-md" style="border-color:var(--danger)">
+    <span class="stat-value" style="color:var(--danger)">{{ summary.violations.count }}</span>
     <span class="stat-label">Violations Detected</span>
   </div>
 
   <!-- Violations Gallery -->
-  <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));gap:16px">
+  <div class="violation-gallery">
     {% for event in violations or [] %}
-    <div style="background:#161b22;border-radius:8px;overflow:hidden;border:1px solid #30363d">
+    <div class="violation-card">
       {% if event.image_crop %}
       <a href="{{ url_for('speed.speed_artifact', job_id=job_id, filename=event.image_full if event.image_full else event.image_crop) }}"
         target="_blank" title="View full frame">
         <img src="{{ url_for('speed.speed_artifact', job_id=job_id, filename=event.image_crop) }}"
-          style="width:100%;height:140px;object-fit:cover;display:block" alt="Violation #{{ event.event_id }}">
+          class="violation-card-img" alt="Violation #{{ event.event_id }}">
       </a>
       {% elif event.image_full %}
       <a href="{{ url_for('speed.speed_artifact', job_id=job_id, filename=event.image_full) }}" target="_blank"
         title="View full frame">
         <img src="{{ url_for('speed.speed_artifact', job_id=job_id, filename=event.image_full) }}"
-          style="width:100%;height:140px;object-fit:cover;display:block" alt="Violation #{{ event.event_id }}">
+          class="violation-card-img" alt="Violation #{{ event.event_id }}">
       </a>
       {% else %}
-      <div
-        style="width:100%;height:140px;background:#0d1117;display:flex;align-items:center;justify-content:center;color:#8b949e">
-        No image
-      </div>
+      <div class="violation-card-img violation-card-noimg">No image</div>
       {% endif %}
-      <div style="padding:10px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <span style="font-weight:600;color:#f85149">{{ event.speed_kmh }} km/h</span>
+      <div class="violation-card-body">
+        <div class="flex-between mb-xs">
+          <span class="violation-card-speed">{{ event.speed_kmh }} km/h</span>
           <span class="muted-small">#{{ event.event_id }}</span>
         </div>
-        <div style="font-size:12px;color:#8b949e">
-          <div>Track: <span style="color:#c9d1d9">{{ event.track_id }}</span> ({{ event.class_name }})</div>
-          <div>Time: <span style="color:#c9d1d9">{{ "%.2f"|format(event.timestamp_s) }}s</span></div>
-          <div>Frame: <span style="color:#c9d1d9">{{ event.frame_idx }}</span></div>
+        <div class="violation-card-meta">
+          <div>Track: <span style="color:var(--text-primary)">{{ event.track_id }}</span> ({{ event.class_name }})</div>
+          <div>Time: <span style="color:var(--text-primary)">{{ "%.2f"|format(event.timestamp_s) }}s</span></div>
+          <div>Frame: <span style="color:var(--text-primary)">{{ event.frame_idx }}</span></div>
         </div>
       </div>
     </div>
@@ -139,38 +192,36 @@
 {% if summary.per_track and summary.per_track|length > 0 %}
 <section class="card">
   <h3>Per-Track Statistics</h3>
-  <div style="overflow-x:auto;margin-top:12px">
-    <table style="width:100%;border-collapse:collapse;font-size:13px">
+  <div class="table-scroll-wrapper mt-md">
+    <table>
       <thead>
-        <tr style="border-bottom:1px solid #30363d">
-          <th style="padding:8px;text-align:left;color:#8b949e">Track ID</th>
-          <th style="padding:8px;text-align:left;color:#8b949e">Class</th>
-          <th style="padding:8px;text-align:right;color:#8b949e">Avg Speed</th>
-          <th style="padding:8px;text-align:right;color:#8b949e">Max Speed</th>
-          <th style="padding:8px;text-align:right;color:#8b949e">Frames</th>
-          <th style="padding:8px;text-align:right;color:#8b949e">Rejected</th>
-          <th style="padding:8px;text-align:right;color:#8b949e">Start</th>
-          <th style="padding:8px;text-align:right;color:#8b949e">End</th>
+        <tr>
+          <th>Track ID</th>
+          <th>Class</th>
+          <th class="text-right">Avg Speed</th>
+          <th class="text-right">Max Speed</th>
+          <th class="text-right">Frames</th>
+          <th class="text-right">Rejected</th>
+          <th class="text-right">Start</th>
+          <th class="text-right">End</th>
         </tr>
       </thead>
       <tbody>
         {% for tid, stats in summary.per_track.items()|sort(attribute='1.max_kph', reverse=true) %}
-        <tr style="border-bottom:1px solid #21262d">
-          <td style="padding:8px;font-weight:600">#{{ tid }}</td>
-          <td style="padding:8px">{{ stats.class }}</td>
-          <td style="padding:8px;text-align:right">{{ stats.avg_kph|round(1) }} km/h</td>
-          <td {% set max_kph_color='#f0883e' if stats.max_kph> 80 else ('#58a6ff' if stats.max_kph > 50 else '#8b949e')
-            %}
-            style="padding:8px;text-align:right;color:{{ max_kph_color }}">
+        <tr>
+          <td style="font-weight:600">#{{ tid }}</td>
+          <td>{{ stats.class }}</td>
+          <td class="text-right">{{ stats.avg_kph|round(1) }} km/h</td>
+          <td
+            class="text-right {% if stats.max_kph > 80 %}text-warning{% elif stats.max_kph > 50 %}text-accent{% endif %}">
             {{ stats.max_kph|round(1) }} km/h
           </td>
-          <td style="padding:8px;text-align:right">{{ stats.frames_seen }}</td>
-          <td {% set rejected_color='#f0883e' if stats.rejected_updates> 0 else '#8b949e' %}
-            style="padding:8px;text-align:right;color:{{ rejected_color }}">
+          <td class="text-right">{{ stats.frames_seen }}</td>
+          <td class="text-right {% if stats.rejected_updates > 0 %}text-warning{% endif %}">
             {{ stats.rejected_updates|default(0) }}
           </td>
-          <td style="padding:8px;text-align:right;color:#8b949e">{{ stats.start_frame }}</td>
-          <td style="padding:8px;text-align:right;color:#8b949e">{{ stats.end_frame }}</td>
+          <td class="text-right text-muted">{{ stats.start_frame }}</td>
+          <td class="text-right text-muted">{{ stats.end_frame }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -179,13 +230,13 @@
 </section>
 {% endif %}
 
-<!-- Settings Used (Expanded) -->
-<section class="card" style="background:#0d1117">
+<!-- Settings Used -->
+<section class="card" style="background:var(--bg-surface)">
   <h3>Settings Used</h3>
   {% if summary.settings_used %}
-  <details open style="margin-top:12px">
-    <summary style="cursor:pointer;color:#58a6ff;user-select:none">Detection & Tracking</summary>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:8px;margin-top:8px">
+  <details open class="mt-md">
+    <summary class="details-summary">Detection & Tracking</summary>
+    <div class="grid-settings mt-sm">
       <div><span class="muted-small">Min Confidence:</span> {{ summary.settings_used.min_conf }}</div>
       <div><span class="muted-small">Max Det/Frame:</span> {{ summary.settings_used.max_det_per_frame }}</div>
       <div><span class="muted-small">Min Box Area:</span> {{ summary.settings_used.min_box_area }} px²</div>
@@ -194,9 +245,9 @@
       <div><span class="muted-small">Track Buffer:</span> {{ summary.settings_used.track_buffer }} frames</div>
     </div>
   </details>
-  <details style="margin-top:12px">
-    <summary style="cursor:pointer;color:#58a6ff;user-select:none">Speed Calculation</summary>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:8px;margin-top:8px">
+  <details class="mt-md">
+    <summary class="details-summary">Speed Calculation</summary>
+    <div class="grid-settings mt-sm">
       <div><span class="muted-small">Max Speed:</span> {{ summary.settings_used.max_kph }} km/h</div>
       <div><span class="muted-small">Smoothing Window:</span> {{ summary.settings_used.smoothing_window_s }}s</div>
       <div><span class="muted-small">Min dt:</span> {{ summary.settings_used.min_dt_s }}s</div>
@@ -206,24 +257,21 @@
       <div><span class="muted-small">Jump Reject:</span> {{ summary.settings_used.jump_reject_m }}m</div>
     </div>
   </details>
-  <details style="margin-top:12px">
-    <summary style="cursor:pointer;color:#58a6ff;user-select:none">Performance</summary>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:8px;margin-top:8px">
+  <details class="mt-md">
+    <summary class="details-summary">Performance</summary>
+    <div class="grid-settings mt-sm">
       <div><span class="muted-small">Frame Skip:</span> {{ summary.settings_used.frame_skip }}</div>
       <div><span class="muted-small">Resize Width:</span> {% if summary.settings_used.resize_width > 0 %}{{
         summary.settings_used.resize_width }}px{% else %}Original{% endif %}</div>
       <div><span class="muted-small">Output FPS:</span> {{ summary.output_fps|round(1) }}</div>
     </div>
   </details>
-  <details style="margin-top:12px">
-    <summary style="cursor:pointer;color:#58a6ff;user-select:none">Trail Visualization</summary>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:8px;margin-top:8px">
+  <details class="mt-md">
+    <summary class="details-summary">Trail Visualization</summary>
+    <div class="grid-settings mt-sm">
       <div><span class="muted-small">Trails Enabled:</span>
-        {% if summary.settings_used.enable_trails %}
-        <span style="color:#238636">✓ Yes</span>
-        {% else %}
-        <span style="color:#8b949e">✗ No</span>
-        {% endif %}
+        {% if summary.settings_used.enable_trails %}<span class="text-success">✓ Yes</span>{% else %}<span
+          class="text-muted">✗ No</span>{% endif %}
       </div>
       {% if summary.settings_used.enable_trails %}
       <div><span class="muted-small">Duration:</span> {{ summary.settings_used.trail_seconds }}s</div>
@@ -237,15 +285,12 @@
       {% endif %}
     </div>
   </details>
-  <details style="margin-top:12px">
-    <summary style="cursor:pointer;color:#58a6ff;user-select:none">Violation Detection</summary>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:8px;margin-top:8px">
+  <details class="mt-md">
+    <summary class="details-summary">Violation Detection</summary>
+    <div class="grid-settings mt-sm">
       <div><span class="muted-small">Violations Enabled:</span>
-        {% if summary.settings_used.violation_enabled %}
-        <span style="color:#f85149">✓ Yes</span>
-        {% else %}
-        <span style="color:#8b949e">✗ No</span>
-        {% endif %}
+        {% if summary.settings_used.violation_enabled %}<span style="color:var(--danger)">✓ Yes</span>{% else %}<span
+          class="text-muted">✗ No</span>{% endif %}
       </div>
       {% if summary.settings_used.violation_enabled %}
       <div><span class="muted-small">Threshold:</span> {{ summary.settings_used.violation_speed_kmh }} km/h</div>
@@ -261,8 +306,7 @@
     </div>
   </details>
   {% else %}
-  <!-- Legacy format -->
-  <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px">
+  <div class="grid-settings mt-sm">
     <div><span class="muted-small">Max Speed:</span> {{ summary.config.max_kph }} km/h</div>
     <div><span class="muted-small">Window:</span> {{ summary.config.window_s }}s</div>
     <div><span class="muted-small">Min dt:</span> {{ summary.config.min_dt_s }}s</div>
@@ -270,11 +314,196 @@
   </div>
   {% endif %}
 
-  <p class="muted-small" style="margin-top:12px">
+  <p class="muted-small mt-md">
     Settings fingerprint: <code>{{ summary.settings_fingerprint|default('N/A') }}</code>
     {% if summary.source_page %}
     <br>Source: <code>{{ summary.source_page }}</code> | Type: <code>{{ summary.analysis_type }}</code>
     {% endif %}
   </p>
 </section>
+
+<script>
+  /* ── Video player controls ── */
+  (function () {
+    const video = document.getElementById('result-video');
+    if (!video) return;
+    const fps = {{ summary.fps|default (30) | round(1)
+  }};
+
+  // Playback rate buttons
+  document.querySelectorAll('.playback-rate-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const rate = parseFloat(btn.dataset.rate);
+      video.playbackRate = rate;
+      document.querySelectorAll('.playback-rate-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
+  // Frame step buttons
+  document.getElementById('frame-back')?.addEventListener('click', () => {
+    video.pause();
+    video.currentTime = Math.max(0, video.currentTime - 1 / fps);
+  });
+  document.getElementById('frame-fwd')?.addEventListener('click', () => {
+    video.pause();
+    video.currentTime = Math.min(video.duration, video.currentTime + 1 / fps);
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.key === 'ArrowLeft') { video.pause(); video.currentTime = Math.max(0, video.currentTime - 1 / fps); e.preventDefault(); }
+    if (e.key === 'ArrowRight') { video.pause(); video.currentTime += 1 / fps; e.preventDefault(); }
+    if (e.key === ' ') { e.preventDefault(); video.paused ? video.play() : video.pause(); }
+  });
+  }) ();
+
+  /* ── Vanilla Charts ── */
+  (function () {
+    // Build per-track data from the template
+    const perTrack = {
+      {% if summary.per_track %}
+    {% for tid, stats in summary.per_track.items() %}
+    "{{ tid }}": { class: "{{ stats.class }}", max_kph: { { stats.max_kph | round(1) } }, avg_kph: { { stats.avg_kph | round(1) } } },
+    {% endfor %}
+    {% endif %}
+  };
+
+  const tracks = Object.values(perTrack);
+  if (tracks.length === 0) return;
+
+  // ── Speed Histogram ──
+  const histCanvas = document.getElementById('chart-histogram');
+  if (histCanvas) {
+    const ctx = histCanvas.getContext('2d');
+    const speeds = tracks.map(t => t.max_kph);
+    const maxSpeed = Math.ceil(Math.max(...speeds) / 10) * 10;
+    const binSize = Math.max(5, Math.round(maxSpeed / 10));
+    const numBins = Math.ceil(maxSpeed / binSize);
+    const bins = new Array(numBins).fill(0);
+    speeds.forEach(s => { const i = Math.min(Math.floor(s / binSize), numBins - 1); bins[i]++; });
+    const maxCount = Math.max(...bins, 1);
+
+    function drawHistogram() {
+      const W = histCanvas.width = histCanvas.clientWidth * (window.devicePixelRatio || 1);
+      const H = histCanvas.height = histCanvas.clientHeight * (window.devicePixelRatio || 1);
+      ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+      const w = histCanvas.clientWidth, h = histCanvas.clientHeight;
+      const pad = { top: 20, right: 20, bottom: 40, left: 45 };
+      const plotW = w - pad.left - pad.right;
+      const plotH = h - pad.top - pad.bottom;
+      const barW = plotW / numBins - 4;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Gridlines
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--border-default').trim();
+      ctx.lineWidth = 0.5;
+      for (let i = 0; i <= 4; i++) {
+        const y = pad.top + plotH - (plotH * i / 4);
+        ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(w - pad.right, y); ctx.stroke();
+      }
+
+      // Bars
+      const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+      bins.forEach((count, i) => {
+        const x = pad.left + i * (plotW / numBins) + 2;
+        const barH = (count / maxCount) * plotH;
+        ctx.fillStyle = accent;
+        ctx.globalAlpha = 0.8;
+        ctx.beginPath();
+        ctx.roundRect(x, pad.top + plotH - barH, barW, barH, [4, 4, 0, 0]);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        // X labels
+        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
+        ctx.font = '11px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${i * binSize}`, x + barW / 2, h - pad.bottom + 16);
+      });
+
+      // Y axis labels
+      ctx.textAlign = 'right';
+      for (let i = 0; i <= 4; i++) {
+        const y = pad.top + plotH - (plotH * i / 4);
+        ctx.fillText(Math.round(maxCount * i / 4), pad.left - 8, y + 4);
+      }
+
+      // Axis titles
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary').trim();
+      ctx.font = '12px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Speed (km/h)', w / 2, h - 4);
+      ctx.save();
+      ctx.translate(12, h / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText('Count', 0, 0);
+      ctx.restore();
+    }
+    drawHistogram();
+    window.addEventListener('resize', drawHistogram);
+  }
+
+  // ── Class Breakdown Donut ──
+  const donutCanvas = document.getElementById('chart-class-breakdown');
+  if (donutCanvas) {
+    const ctx2 = donutCanvas.getContext('2d');
+    const classCounts = {};
+    tracks.forEach(t => { classCounts[t.class] = (classCounts[t.class] || 0) + 1; });
+    const entries = Object.entries(classCounts).sort((a, b) => b[1] - a[1]);
+    const total = entries.reduce((s, e) => s + e[1], 0);
+    const colors = ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#ec4899', '#6366f1'];
+
+    function drawDonut() {
+      const W = donutCanvas.width = donutCanvas.clientWidth * (window.devicePixelRatio || 1);
+      const H = donutCanvas.height = donutCanvas.clientHeight * (window.devicePixelRatio || 1);
+      ctx2.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+      const w = donutCanvas.clientWidth, h = donutCanvas.clientHeight;
+      const cx = w * 0.35, cy = h / 2;
+      const r = Math.min(cx - 20, cy - 20);
+      const inner = r * 0.55;
+
+      ctx2.clearRect(0, 0, w, h);
+
+      let startAngle = -Math.PI / 2;
+      entries.forEach(([cls, count], i) => {
+        const slice = (count / total) * Math.PI * 2;
+        ctx2.beginPath();
+        ctx2.arc(cx, cy, r, startAngle, startAngle + slice);
+        ctx2.arc(cx, cy, inner, startAngle + slice, startAngle, true);
+        ctx2.closePath();
+        ctx2.fillStyle = colors[i % colors.length];
+        ctx2.fill();
+        startAngle += slice;
+      });
+
+      // Center text
+      ctx2.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim();
+      ctx2.font = 'bold 22px Inter, sans-serif';
+      ctx2.textAlign = 'center';
+      ctx2.fillText(total, cx, cy + 4);
+      ctx2.font = '11px Inter, sans-serif';
+      ctx2.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
+      ctx2.fillText('tracks', cx, cy + 20);
+
+      // Legend
+      const legX = w * 0.65;
+      let legY = 24;
+      ctx2.textAlign = 'left';
+      entries.forEach(([cls, count], i) => {
+        ctx2.fillStyle = colors[i % colors.length];
+        ctx2.fillRect(legX, legY - 8, 12, 12);
+        ctx2.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim();
+        ctx2.font = '13px Inter, sans-serif';
+        ctx2.fillText(`${cls} (${count})`, legX + 18, legY + 2);
+        legY += 24;
+      });
+    }
+    drawDonut();
+    window.addEventListener('resize', drawDonut);
+  }
+  }) ();
+</script>
 {% endblock %}

@@ -1,239 +1,69 @@
-<!doctype html>
-<html>
+{% extends "index.html" %}
+{% block title %}Raw Camera View — Traffic Analysis Dashboard{% endblock %}
 
-<head>
-  <meta charset="utf-8">
-  <title>Raw Camera Multi-View</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <style>
-    body {
-      background: #111;
-      color: #eee;
-      font-family: system-ui, sans-serif;
-    }
+{% block breadcrumb %}
+<nav class="breadcrumb" aria-label="Breadcrumb">
+  <a href="/">Home</a>
+  <span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Raw Camera View</span>
+</nav>
+{% endblock %}
 
-    .toolbar {
-      padding: 10px 14px;
-      background: #1b1b1b;
-      position: sticky;
-      top: 0;
-      z-index: 2;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-4px;margin-right:6px">
+      <polygon points="23 7 16 12 23 17 23 7" />
+      <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+    </svg>
+    Raw Camera Multi-View
+  </h1>
+  <p class="page-subtitle">Unprocessed camera feeds without detection overlays.</p>
+</div>
 
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
-      gap: 16px;
-      padding: 16px;
-    }
+<div class="card card-static toolbar">
+  <span class="badge">{{ topics|length }} stream(s)</span>
+  <label class="toolbar-inline-label"><span class="muted-small">Width:</span><input id="w" value="720"
+      style="width:70px"></label>
+  <label class="toolbar-inline-label"><span class="muted-small">FPS:</span><input id="fps" value="15"
+      style="width:56px"></label>
+  <label class="toolbar-inline-label"><span class="muted-small">JPEG Q:</span><input id="q" value="80"
+      style="width:56px"></label>
+  <button class="btn primary" onclick="refresh()">Apply</button>
+</div>
 
-    .card {
-      background: #181818;
-      border-radius: 12px;
-      padding: 10px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, .4);
-    }
-
-    .card h3 {
-      margin: 6px 8px 8px 8px;
-      font-size: 13px;
-      color: #bbb;
-      font-weight: 600;
-    }
-
-    .card img {
-      width: 100%;
-      height: auto;
-      border-radius: 8px;
-      display: block;
-      background: #000;
-    }
-
-    input {
-      background: #111;
-      color: #eee;
-      border: 1px solid #333;
-      border-radius: 6px;
-      padding: 4px 8px;
-    }
-
-    label {
-      font-size: 12px;
-      margin-right: 6px;
-      color: #aaa;
-    }
-
-    /* ▼ Fancy Navigate dropdown (matches index/grid) */
-    .navmenu {
-      position: relative;
-      display: inline-block;
-      margin-left: auto
-    }
-
-    .navbtn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 14px;
-      border-radius: 999px;
-      font-weight: 600;
-      font-size: 14px;
-      background: linear-gradient(180deg, #2a3442 0%, #1f2937 100%);
-      border: 1px solid #3a4b63;
-      color: #e7f0ff;
-      box-shadow: 0 6px 22px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(255, 255, 255, .04);
-      cursor: pointer;
-      transition: transform .06s ease, box-shadow .12s ease, background .12s ease;
-    }
-
-    .navbtn:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 10px 28px rgba(0, 0, 0, .45), inset 0 0 0 1px rgba(255, 255, 255, .06);
-    }
-
-    .navbtn:active {
-      transform: translateY(0);
-    }
-
-    .navbtn .dot {
-      width: 8px;
-      height: 8px;
-      background: #8dd0ff;
-      border-radius: 999px;
-      box-shadow: 0 0 0 3px rgba(141, 208, 255, .15)
-    }
-
-    .navbtn .caret {
-      transition: transform .15s ease;
-      opacity: .9
-    }
-
-    .navmenu.open .navbtn .caret {
-      transform: rotate(180deg)
-    }
-
-    .menu {
-      position: absolute;
-      right: 0;
-      top: 44px;
-      min-width: 240px;
-      padding: 8px;
-      background: #111826;
-      border: 1px solid #2c3642;
-      border-radius: 12px;
-      box-shadow: 0 20px 50px rgba(0, 0, 0, .55);
-      z-index: 20;
-      animation: fadeIn .12s ease;
-    }
-
-    .menu a {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 9px 10px;
-      border-radius: 8px;
-      color: #dbeafe;
-      text-decoration: none;
-      font-size: 14px;
-    }
-
-    .menu a:hover {
-      background: #223046
-    }
-
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: translateY(-4px)
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0)
-      }
-    }
-  </style>
-</head>
-
-<body>
-  <div class="toolbar">
-    <!-- counts + controls -->
-    <span>{{ topics|length }} stream(s)</span>
-    <label>Width:</label><input id="w" value="720" size="4">
-    <label>FPS:</label><input id="fps" value="15" size="3">
-    <label>JPEG Q:</label><input id="q" value="80" size="3">
-    <button onclick="refresh()">Apply</button>
-
-    <!-- Navigate dropdown -->
-    <div class="navmenu" id="navwrap">
-      <button class="navbtn" id="navbtn" aria-haspopup="true" aria-expanded="false">
-        <span class="dot" aria-hidden="true"></span>
-        Navigate
-        <svg class="caret" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M6 9l6 6 6-6" stroke="#cfe3ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-      </button>
-      <div class="menu" id="navmenu" hidden>
-        <a href="/">🏠 Control Panel</a>
-        <a href="/grid">🧩 Detection Multi-View</a>
-        <a href="/grid_raw">🎥 Raw Camera Multi-View</a>
-        <a href="/offline">🧪 Offline Analysis</a>
-        <a href="/roboflow">🔗 Roboflow (Hosted)</a>
-        <a href="/speed">🚗 Speed (Calibrated)</a>
-        <a href="/library">🗂️ Library</a>
-      </div>
-    </div>
+{% if topics|length == 0 %}
+<div class="empty-state">
+  <div class="empty-state-icon">📷</div>
+  <h3 class="empty-state-title">No Raw Camera Topics</h3>
+  <p class="empty-state-desc">Start the launch (or enable <code>publish_raw</code>) and refresh.</p>
+</div>
+{% else %}
+<div class="multiview-grid" id="grid">
+  {% for t in topics %}
+  <div class="raw-card">
+    <h3>{{ t }}</h3>
+    <img src="{{ url_for('stream', topic=t, w=720, fps=15, q=80) }}" data-topic="{{ t }}" alt="Raw feed: {{ t }}">
   </div>
+  {% endfor %}
+</div>
+{% endif %}
 
-  <div class="grid" id="grid">
-    {% for t in topics %}
-    <div class="card">
-      <h3>{{ t }}</h3>
-      <img src="{{ url_for('stream', topic=t, w=720, fps=15, q=80) }}" data-topic="{{ t }}">
-    </div>
-    {% endfor %}
-  </div>
-
-  {% if topics|length == 0 %}
-  <div style="padding:16px;color:#aaa;">
-    No raw camera topics found. Start the launch (or enable <code>publish_raw</code>) and refresh.
-  </div>
-  {% endif %}
-
-  <script>
-    /* dropdown toggler */
-    (function () {
-      const wrap = document.getElementById('navwrap');
-      const btn = document.getElementById('navbtn');
-      const menu = document.getElementById('navmenu');
-      if (!wrap || !btn || !menu) return;
-
-      const open = () => { wrap.classList.add('open'); btn.setAttribute('aria-expanded', 'true'); menu.hidden = false; };
-      const close = () => { wrap.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); menu.hidden = true; };
-
-      btn.addEventListener('click', (e) => { e.stopPropagation(); menu.hidden ? open() : close(); });
-      document.addEventListener('click', () => close());
-      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
-    })();
-
-    function refresh() {
-      const w = document.getElementById('w').value || 720;
-      const fps = document.getElementById('fps').value || 15;
-      const q = document.getElementById('q').value || 80;
-      document.querySelectorAll('img[data-topic]').forEach(img => {
-        const t = img.dataset.topic;
-        img.src = `/stream?topic=${encodeURIComponent(t)}&w=${w}&fps=${fps}&q=${q}&_=${Date.now()}`;
-      });
-    }
-    document.querySelectorAll('img').forEach(img => {
-      img.addEventListener('error', () => setTimeout(() => {
-        img.src = img.src.split('&_=')[0] + '&_=' + Date.now();
-      }, 1000));
+<script>
+  function refresh() {
+    const w = document.getElementById('w').value || 720;
+    const fps = document.getElementById('fps').value || 15;
+    const q = document.getElementById('q').value || 80;
+    document.querySelectorAll('img[data-topic]').forEach(img => {
+      const t = img.dataset.topic;
+      img.src = `/stream?topic=${encodeURIComponent(t)}&w=${w}&fps=${fps}&q=${q}&_=${Date.now()}`;
     });
-  </script>
-</body>
-
-</html>
+  }
+  document.querySelectorAll('img[data-topic]').forEach(img => {
+    img.addEventListener('error', () => setTimeout(() => {
+      img.src = img.src.split('&_=')[0] + '&_=' + Date.now();
+    }, 1000));
+  });
+</script>
+{% endblock %}

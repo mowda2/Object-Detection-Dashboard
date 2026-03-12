@@ -1,109 +1,253 @@
 {% extends "index.html" %}
+{% block title %}Library — Traffic Analysis Dashboard{% endblock %}
+{% block breadcrumb %}
+<nav class="breadcrumb" aria-label="Breadcrumb">
+  <a href="/">Home</a>
+  <span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Library</span>
+</nav>
+{% endblock %}
 {% block content %}
-<section class="card">
-  <h2>Analysis Library</h2>
-  <div class="row" style="gap:8px;align-items:center">
-    <input id="q" placeholder="Search filename / model / classes" style="flex:1;min-width:260px">
-    <button id="refresh" class="btn">Refresh</button>
+<div class="page-header">
+  <h1 class="page-title">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-4px;margin-right:6px">
+      <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+    </svg>
+    Analysis Library
+  </h1>
+  <p class="page-subtitle">Browse, search, and manage all your saved analysis results.</p>
+</div>
+
+<section class="card card-static">
+  <div class="library-toolbar">
+    <input id="q" placeholder="Search filename, model, or classes…" aria-label="Search library">
+    <select id="sort-select" aria-label="Sort order">
+      <option value="newest">Newest first</option>
+      <option value="oldest">Oldest first</option>
+      <option value="name">Name (A→Z)</option>
+    </select>
+    <div class="library-view-toggle">
+      <button id="view-grid" class="btn active" title="Grid view" aria-label="Grid view">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7" />
+          <rect x="14" y="3" width="7" height="7" />
+          <rect x="3" y="14" width="7" height="7" />
+          <rect x="14" y="14" width="7" height="7" />
+        </svg>
+      </button>
+      <button id="view-list" class="btn" title="List view" aria-label="List view">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="8" y1="6" x2="21" y2="6" />
+          <line x1="8" y1="12" x2="21" y2="12" />
+          <line x1="8" y1="18" x2="21" y2="18" />
+          <line x1="3" y1="6" x2="3.01" y2="6" />
+          <line x1="3" y1="12" x2="3.01" y2="12" />
+          <line x1="3" y1="18" x2="3.01" y2="18" />
+        </svg>
+      </button>
+    </div>
+    <button id="refresh" class="btn primary">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 4 23 10 17 10" />
+        <polyline points="1 20 1 14 7 14" />
+        <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+      </svg>
+      Refresh
+    </button>
   </div>
 </section>
 
-<section class="card" style="background:transparent;border:none;padding:0">
-  <div id="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:16px"></div>
+<!-- Loading skeleton -->
+<div id="skeleton-grid" class="library-grid">
+  <div class="skeleton skeleton-card"></div>
+  <div class="skeleton skeleton-card"></div>
+  <div class="skeleton skeleton-card"></div>
+  <div class="skeleton skeleton-card"></div>
+</div>
+
+<!-- Empty state (hidden by default) -->
+<div id="empty-state" class="empty-state" style="display:none">
+  <div class="empty-state-icon">🗂️</div>
+  <h3 class="empty-state-title">No Analyses Found</h3>
+  <p class="empty-state-desc">Run a speed analysis to populate your library.<br>Results will automatically
+    appear here.</p>
+</div>
+
+<!-- Actual content grid -->
+<section class="mb-lg">
+  <div id="grid" class="library-grid"></div>
+  <!-- Pagination -->
+  <div id="pagination" class="library-pagination" style="display:none"></div>
 </section>
 
 <script>
-  /* ---- Library UI ---- */
+  const PAGE_SIZE = 12;
+  let currentPage = 1;
+  let allItems = [];
+  let viewMode = 'grid';
+
   async function fetchJSON(url, opts) {
     const r = await fetch(url, opts || {});
     if (!r.ok) throw new Error(await r.text());
     return r.json();
   }
+
   function chip(text) {
     const s = document.createElement('span');
     s.className = 'badge';
-    s.style.marginRight = '6px';
     s.textContent = text;
     return s;
   }
-  function small(text) {
-    const s = document.createElement('div');
-    s.className = 'muted-small';
-    s.textContent = text;
-    return s;
+
+  function sortItems(items, sortKey) {
+    const sorted = [...items];
+    switch (sortKey) {
+      case 'oldest':
+        sorted.sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
+        break;
+      case 'name':
+        sorted.sort((a, b) => (a.filename || '').localeCompare(b.filename || ''));
+        break;
+      case 'newest':
+      default:
+        sorted.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+        break;
+    }
+    return sorted;
+  }
+
+  function renderPage() {
+    const grid = document.getElementById('grid');
+    const skeletonGrid = document.getElementById('skeleton-grid');
+    const emptyState = document.getElementById('empty-state');
+    const pagination = document.getElementById('pagination');
+
+    skeletonGrid.style.display = 'none';
+
+    const sortKey = document.getElementById('sort-select').value;
+    const sorted = sortItems(allItems, sortKey);
+    const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+    currentPage = Math.min(currentPage, totalPages);
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const pageItems = sorted.slice(start, start + PAGE_SIZE);
+
+    grid.innerHTML = '';
+
+    if (sorted.length === 0) {
+      emptyState.style.display = '';
+      pagination.style.display = 'none';
+      return;
+    }
+    emptyState.style.display = 'none';
+
+    // Toggle grid/list class
+    grid.className = viewMode === 'list' ? 'library-list' : 'library-grid';
+
+    pageItems.forEach(it => {
+      const card = document.createElement('div');
+      card.className = 'card library-card';
+
+      // Media
+      const media = document.createElement('div');
+      media.className = 'library-card-media';
+      const vid = document.createElement('video');
+      vid.controls = true; vid.playsInline = true; vid.muted = true; vid.preload = 'metadata';
+      if (it.poster_url) vid.poster = it.poster_url;
+      vid.src = it.video_url;
+      media.appendChild(vid);
+      card.appendChild(media);
+
+      // Info
+      const info = document.createElement('div');
+      info.className = 'library-card-info';
+
+      const title = document.createElement('div');
+      title.className = 'library-card-title';
+      title.textContent = it.filename || 'Untitled';
+      info.appendChild(title);
+
+      const date = document.createElement('div');
+      date.className = 'muted-small';
+      date.textContent = it.created_at || '';
+      info.appendChild(date);
+
+      // Tags row
+      const tags = document.createElement('div');
+      tags.className = 'library-card-tags mt-sm';
+      if (it.model) tags.appendChild(chip(it.model));
+      if (it.include) {
+        const inc = it.include.split(',').map(s => s.trim()).filter(Boolean).join(' · ');
+        if (inc) tags.appendChild(chip(inc));
+      }
+      const stats = it.class_stats || {};
+      Object.keys(stats).sort().forEach(k => tags.appendChild(chip(`${k}: ${stats[k]}`)));
+      const total = Object.values(stats).reduce((a, b) => a + b, 0);
+      if (total > 0) tags.appendChild(chip(`total: ${total}`));
+      info.appendChild(tags);
+
+      // Actions
+      const actions = document.createElement('div');
+      actions.className = 'library-card-actions mt-sm';
+      const aCsv = document.createElement('a'); aCsv.href = it.csv_url; aCsv.className = 'btn'; aCsv.textContent = '📥 CSV';
+      const aJson = document.createElement('a'); aJson.href = it.json_url; aJson.className = 'btn'; aJson.textContent = '📥 JSON';
+      const del = document.createElement('button'); del.className = 'btn danger'; del.textContent = '🗑 Delete';
+      del.onclick = async () => {
+        const ok = await showConfirm('Delete Analysis', 'Are you sure you want to delete this analysis? This cannot be undone.');
+        if (!ok) return;
+        await fetch('/api/library/' + it.id + '/delete', { method: 'POST' });
+        showToast('Analysis deleted', 'success');
+        load(document.getElementById('q').value);
+      };
+      actions.appendChild(aCsv); actions.appendChild(aJson); actions.appendChild(del);
+      info.appendChild(actions);
+
+      card.appendChild(info);
+      grid.appendChild(card);
+    });
+
+    // Render pagination
+    if (totalPages > 1) {
+      pagination.style.display = '';
+      pagination.innerHTML = '';
+      for (let p = 1; p <= totalPages; p++) {
+        const btn = document.createElement('button');
+        btn.className = 'btn' + (p === currentPage ? ' active' : '');
+        btn.textContent = p;
+        btn.onclick = () => { currentPage = p; renderPage(); };
+        pagination.appendChild(btn);
+      }
+    } else {
+      pagination.style.display = 'none';
+    }
   }
 
   async function load(q = "") {
     const j = await fetchJSON('/api/library' + (q ? `?q=${encodeURIComponent(q)}` : ''));
-    const grid = document.getElementById('grid'); grid.innerHTML = '';
-
-    (j.items || []).forEach(it => {
-      const card = document.createElement('div');
-      card.className = 'card';
-
-      // header
-      const h = document.createElement('div');
-      h.style.marginBottom = '8px';
-      h.appendChild(small(`${it.filename || ''} · ${it.created_at || ''}`));
-      card.appendChild(h);
-
-      // media
-      const media = document.createElement('div');
-      media.style.marginBottom = '8px';
-      const vid = document.createElement('video');
-      vid.controls = true; vid.playsInline = true; vid.muted = true;
-      if (it.poster_url) vid.poster = it.poster_url;
-      vid.src = it.video_url;
-      vid.style.width = '100%';
-      vid.style.borderRadius = '8px';
-      media.appendChild(vid);
-      card.appendChild(media);
-
-      // tags (model + included classes)
-      const row1 = document.createElement('div');
-      row1.style.marginBottom = '6px';
-      row1.appendChild(chip(it.model || ''));
-      if (it.include) {
-        const inc = (it.include || '').split(',').map(s => s.trim()).filter(Boolean).join(' · ');
-        row1.appendChild(chip(inc));
-      }
-      card.appendChild(row1);
-
-      // counts
-      const row2 = document.createElement('div');
-      const stats = it.class_stats || {};
-      Object.keys(stats).sort().forEach(k => {
-        row2.appendChild(chip(`${k}: ${stats[k]}`));
-      });
-      const uniq = document.createElement('span');
-      uniq.className = 'badge';
-      uniq.textContent = `unique: ${Object.values(stats).reduce((a, b) => a + b, 0)}`;
-      uniq.style.marginLeft = '6px';
-      row2.appendChild(uniq);
-      card.appendChild(row2);
-
-      // actions
-      const row3 = document.createElement('div');
-      row3.className = 'row';
-      row3.style.marginTop = '8px';
-      const aCsv = document.createElement('a'); aCsv.href = it.csv_url; aCsv.className = 'btn'; aCsv.textContent = 'Download CSV';
-      const aJson = document.createElement('a'); aJson.href = it.json_url; aJson.className = 'btn'; aJson.textContent = 'Download Summary';
-      const del = document.createElement('button'); del.className = 'btn danger'; del.textContent = 'Delete';
-      del.onclick = async () => {
-        if (!confirm('Delete this analysis?')) return;
-        await fetch('/api/library/' + it.id + '/delete', { method: 'POST' });
-        load(document.getElementById('q').value);
-      };
-      row3.appendChild(aCsv); row3.appendChild(aJson); row3.appendChild(del);
-      card.appendChild(row3);
-
-      grid.appendChild(card);
-    });
+    allItems = j.items || [];
+    currentPage = 1;
+    renderPage();
   }
 
+  // View toggle
+  document.getElementById('view-grid').onclick = () => {
+    viewMode = 'grid';
+    document.getElementById('view-grid').classList.add('active');
+    document.getElementById('view-list').classList.remove('active');
+    renderPage();
+  };
+  document.getElementById('view-list').onclick = () => {
+    viewMode = 'list';
+    document.getElementById('view-list').classList.add('active');
+    document.getElementById('view-grid').classList.remove('active');
+    renderPage();
+  };
+
+  document.getElementById('sort-select').onchange = () => renderPage();
   document.getElementById('refresh').onclick = () => load(document.getElementById('q').value);
   document.getElementById('q').addEventListener('keydown', e => {
-    if (e.key === 'Enter') load(e.target.value);
+    if (e.key === 'Enter') { currentPage = 1; load(e.target.value); }
   });
   load();
 </script>

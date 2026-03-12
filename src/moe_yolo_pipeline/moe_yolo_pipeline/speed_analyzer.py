@@ -700,11 +700,41 @@ def get_anchor_point(bbox: np.ndarray, anchor: str = "bottom_center") -> Tuple[f
     return u, v
 
 
+# Curated palette of 24 visually distinct, professional BGR colors
+# designed for high contrast on road/asphalt backgrounds
+_TRACK_PALETTE_BGR = [
+    (230, 159,  56),  # cornflower blue
+    ( 80, 200,  50),  # emerald green
+    ( 50,  90, 235),  # vermilion red
+    ( 50, 210, 245),  # amber/gold
+    (200,  80, 180),  # orchid purple
+    (  0, 190, 200),  # dark cyan/teal
+    (120,  60, 220),  # crimson
+    (210, 200,  60),  # sky blue
+    ( 40, 170, 100),  # sea green
+    (100, 100, 255),  # salmon
+    (200, 160,  40),  # steel blue
+    ( 60, 220, 180),  # lime
+    (180,  50, 130),  # plum
+    ( 80, 255, 255),  # yellow
+    (255, 144,  30),  # deep sky blue
+    ( 30, 105, 210),  # chocolate
+    (150, 210,  80),  # light green
+    (100,  50, 200),  # dark red
+    (255, 200, 100),  # light blue
+    ( 50, 180, 255),  # orange
+    (200, 100, 200),  # medium purple
+    (  0, 215, 175),  # spring green
+    (220, 120, 100),  # muted blue
+    (130, 230, 200),  # pale green
+]
+
+
 def color_for_id(track_id: int) -> Tuple[int, int, int]:
     """
-    Generate a deterministic BGR color for a track ID.
-    Uses hashing for consistency across frames.
-    Colors are moderately saturated for visibility on road surfaces.
+    Return a deterministic BGR color for a track ID from a curated palette.
+    Each vehicle gets a distinct, professional-looking color that stays
+    consistent across frames.
     
     Args:
         track_id: The track identifier
@@ -712,21 +742,10 @@ def color_for_id(track_id: int) -> Tuple[int, int, int]:
     Returns:
         (B, G, R) color tuple with values 0-255
     """
-    # Use hash for deterministic but varied colors
-    h = hash(track_id * 1234567)
-    
-    # Generate hue (0-179 in OpenCV HSV)
-    hue = abs(h) % 180
-    
-    # Fixed saturation and value for readable colors (not too bright/neon)
-    saturation = 180  # moderately saturated
-    value = 200       # moderately bright
-    
-    # Convert HSV to BGR
-    hsv = np.array([[[hue, saturation, value]]], dtype=np.uint8)
-    bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
-    
-    return int(bgr[0, 0, 0]), int(bgr[0, 0, 1]), int(bgr[0, 0, 2])
+    # Use a hash to scatter IDs across the palette so adjacent IDs
+    # don't get similar colours
+    idx = abs(hash(track_id * 7919)) % len(_TRACK_PALETTE_BGR)
+    return _TRACK_PALETTE_BGR[idx]
 
 
 # ---------------------------------------------------------------------------
@@ -1021,9 +1040,25 @@ def run_speed_job(job_dir: str, settings: dict = None, progress_cb=None, message
         frame_rate=int(fps / frame_skip)  # Adjust for frame_skip
     )
     
-    # Initialize annotators
-    box_annotator = sv.BoxAnnotator(thickness=2)
-    label_annotator = sv.LabelAnnotator(text_position=sv.Position.TOP_LEFT)
+    # Initialize annotators with per-track colors from our curated palette
+    _sv_palette = sv.ColorPalette(
+        [sv.Color(r=c[2], g=c[1], b=c[0]) for c in _TRACK_PALETTE_BGR]
+    )
+    box_annotator = sv.BoxAnnotator(
+        thickness=2,
+        color=_sv_palette,
+        color_lookup=sv.ColorLookup.TRACK,
+    )
+    label_annotator = sv.LabelAnnotator(
+        text_position=sv.Position.TOP_LEFT,
+        color=_sv_palette,
+        text_color=sv.Color.WHITE,
+        text_scale=0.5,
+        text_thickness=1,
+        text_padding=8,
+        color_lookup=sv.ColorLookup.TRACK,
+        border_radius=4,
+    )
     
     # Initialize speed calculator with new parameters
     speed_calc = SpeedCalculator(
@@ -1257,62 +1292,52 @@ def run_speed_job(job_dir: str, settings: dict = None, progress_cb=None, message
             
             # ---------------------------------------------------------------------------
             # Draw trails BEFORE bbox/label annotation (so labels stay on top)
+            # Uses anti-aliased lines with gradient opacity and tapering thickness
             # ---------------------------------------------------------------------------
             if enable_trails and len(current_frame_track_ids) > 0:
-                if trail_fade:
-                    # Create overlay for blended trail drawing
-                    overlay = frame.copy()
-                    
-                    for track_id in current_frame_track_ids:
-                        history = trail_histories.get(track_id)
-                        if history is None or len(history) < 2:
-                            continue
-                        
-                        # Get points with stride
-                        pts_list = list(history)[::trail_stride]
-                        if len(pts_list) < 2:
-                            continue
-                        
-                        # Get color for this track
-                        color = color_for_id(track_id)
-                        
-                        # Draw segments with fading (older = dimmer)
-                        for seg_idx in range(1, len(pts_list)):
-                            # Age factor: 0 = oldest, 1 = newest
-                            age_factor = seg_idx / (len(pts_list) - 1)
-                            # Apply fading: older segments have lower alpha
-                            segment_intensity = age_factor * trail_alpha
-                            # Dim the color based on age
-                            dimmed_color = (
-                                int(color[0] * segment_intensity),
-                                int(color[1] * segment_intensity),
-                                int(color[2] * segment_intensity)
-                            )
-                            pt1 = (int(pts_list[seg_idx - 1][0]), int(pts_list[seg_idx - 1][1]))
-                            pt2 = (int(pts_list[seg_idx][0]), int(pts_list[seg_idx][1]))
-                            cv2.line(overlay, pt1, pt2, dimmed_color, trail_thickness)
-                    
-                    # Blend overlay with frame
-                    cv2.addWeighted(overlay, trail_alpha, frame, 1 - trail_alpha, 0, frame)
+                # Always use an overlay for proper alpha blending
+                overlay = frame.copy()
                 
-                else:
-                    # Non-fading: simple polylines
-                    for track_id in current_frame_track_ids:
-                        history = trail_histories.get(track_id)
-                        if history is None or len(history) < 2:
-                            continue
+                for track_id in current_frame_track_ids:
+                    history = trail_histories.get(track_id)
+                    if history is None or len(history) < 2:
+                        continue
+                    
+                    # Get points with stride
+                    pts_list = list(history)[::trail_stride]
+                    if len(pts_list) < 2:
+                        continue
+                    
+                    # Get the track's unique colour
+                    color = color_for_id(track_id)
+                    n_segs = len(pts_list) - 1
+                    
+                    for seg_idx in range(n_segs):
+                        pt1 = (int(pts_list[seg_idx][0]), int(pts_list[seg_idx][1]))
+                        pt2 = (int(pts_list[seg_idx + 1][0]), int(pts_list[seg_idx + 1][1]))
                         
-                        # Get points with stride
-                        pts_list = list(history)[::trail_stride]
-                        if len(pts_list) < 2:
-                            continue
+                        # age_factor: 0 = oldest segment, 1 = newest
+                        age_factor = (seg_idx + 1) / n_segs
                         
-                        # Get color for this track
-                        color = color_for_id(track_id)
+                        if trail_fade:
+                            # Fade colour: older → darker
+                            intensity = 0.25 + 0.75 * age_factor  # range [0.25, 1.0]
+                            seg_color = (
+                                int(color[0] * intensity),
+                                int(color[1] * intensity),
+                                int(color[2] * intensity)
+                            )
+                        else:
+                            seg_color = color
                         
-                        # Draw as polyline
-                        pts_np = np.array(pts_list, dtype=np.int32).reshape((-1, 1, 2))
-                        cv2.polylines(frame, [pts_np], isClosed=False, color=color, thickness=trail_thickness)
+                        # Taper thickness: oldest = 1px, newest = trail_thickness
+                        seg_thick = max(1, int(1 + (trail_thickness - 1) * age_factor))
+                        
+                        # Draw anti-aliased line
+                        cv2.line(overlay, pt1, pt2, seg_color, seg_thick, cv2.LINE_AA)
+                
+                # Blend the trail overlay onto the frame
+                cv2.addWeighted(overlay, trail_alpha, frame, 1 - trail_alpha, 0, frame)
             
             # Annotate frame (bboxes and labels ON TOP of trails)
             frame = box_annotator.annotate(frame, detections)
