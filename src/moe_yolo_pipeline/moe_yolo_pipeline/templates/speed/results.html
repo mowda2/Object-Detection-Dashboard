@@ -1,0 +1,1249 @@
+{% extends "index.html" %}
+{% block title %}Speed Results — Traffic Analysis Dashboard{% endblock %}
+{% block breadcrumb %}
+<nav class="breadcrumb" aria-label="Breadcrumb">
+  <a href="/">Home</a>
+  <span class="breadcrumb-sep">›</span>
+  <a href="/speed">Speed Analysis</a>
+  <span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Results</span>
+</nav>
+{% endblock %}
+{% block content %}
+<section class="card card-static">
+  <div class="flex-between" style="flex-wrap:wrap;gap:10px">
+    <div>
+      <h2 class="mb-0">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px">
+          <path d="M12 2a10 10 0 100 20 10 10 0 000-20z" />
+          <path d="M12 6v6l4 2" />
+        </svg>
+        Speed Analysis Results
+      </h2>
+      <p class="muted-small mt-xs">Job: <code id="job-id-code">{{ job_id }}</code>
+        <button class="copy-btn" onclick="copyToClipboard('{{ job_id }}', this)">📋 Copy</button>
+      </p>
+    </div>
+    <div class="row-tight">
+      <a href="{{ url_for('speed.speed_artifact', job_id=job_id, filename='tracks_v1.csv') }}" class="btn">📥 CSV</a>
+      <a href="{{ url_for('speed.speed_artifact', job_id=job_id, filename='summary.json') }}" class="btn" download>📥
+        JSON</a>
+      <a href="{{ url_for('speed.speed_calibrate', job_id=job_id) }}" class="btn">🎯 Calibration</a>
+      <a href="{{ url_for('speed.speed_index') }}" class="btn">← Back</a>
+    </div>
+  </div>
+</section>
+
+<!-- Stats Summary -->
+<section class="card">
+  <h3>Analysis Summary</h3>
+  <div class="stat-grid mt-md">
+    <div class="stat-badge">
+      <span class="stat-value">{{ summary.unique_tracks }}</span>
+      <span class="stat-label">Unique Tracks</span>
+    </div>
+    <div class="stat-badge">
+      <span class="stat-value">{{ summary.overall_max_kph|round(1) }} km/h</span>
+      <span class="stat-label">Max Speed</span>
+    </div>
+    <div class="stat-badge">
+      <span class="stat-value">{{ summary.frames_processed }}</span>
+      <span class="stat-label">Frames Processed</span>
+    </div>
+    <div class="stat-badge">
+      <span class="stat-value">{{ summary.fps|round(1) }}</span>
+      <span class="stat-label">Input FPS</span>
+    </div>
+    {% if summary.total_rejected_updates %}
+    <div class="stat-badge" style="border-color:var(--warning)">
+      <span class="stat-value" style="color:var(--warning)">{{ summary.total_rejected_updates }}</span>
+      <span class="stat-label">Rejected Updates</span>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+<!-- Charts Section -->
+<section class="card">
+  <h3 class="mb-md">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px">
+      <line x1="18" y1="20" x2="18" y2="10" />
+      <line x1="12" y1="20" x2="12" y2="4" />
+      <line x1="6" y1="20" x2="6" y2="14" />
+    </svg>
+    Speed Distribution
+  </h3>
+  <div class="chart-row">
+    <div class="chart-container">
+      <canvas id="chart-histogram" aria-label="Speed distribution histogram"></canvas>
+    </div>
+    <div class="chart-container">
+      <canvas id="chart-class-breakdown" aria-label="Class breakdown chart"></canvas>
+    </div>
+  </div>
+</section>
+
+<!-- Video Player -->
+<section class="card" style="padding:0;overflow:hidden">
+  <div class="video-player-wrap">
+    <video id="result-video" controls playsinline preload="metadata">
+      <source src="{{ url_for('speed.speed_artifact', job_id=job_id, filename='output.mp4') }}" type="video/mp4">
+      Your browser does not support the video tag.
+    </video>
+  </div>
+  <div class="video-controls-bar">
+    <div class="row-tight">
+      <span class="muted-small">Playback:</span>
+      <button class="playback-rate-btn" data-rate="0.25">0.25×</button>
+      <button class="playback-rate-btn" data-rate="0.5">0.5×</button>
+      <button class="playback-rate-btn active" data-rate="1">1×</button>
+      <button class="playback-rate-btn" data-rate="2">2×</button>
+    </div>
+    <div class="row-tight">
+      <button class="frame-step-btn" id="frame-back" title="Step back 1 frame">⏪ Frame</button>
+      <button class="frame-step-btn" id="frame-fwd" title="Step forward 1 frame">Frame ⏩</button>
+    </div>
+    <p class="muted-small mb-0">
+      Annotated output with speed overlays. Use ←/→ for frame stepping.
+    </p>
+  </div>
+</section>
+
+<!-- Speed Violations Section -->
+{% if summary.violations and summary.violations.enabled %}
+{% set is_danger = summary.violations.count > 0 %}
+<section class="card {% if is_danger %}alert-box danger{% else %}alert-box success{% endif %}">
+  <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:16px">
+    <div>
+      <h3 class="mb-0" style="color:var({% if is_danger %}--danger{% else %}--success{% endif %})">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px">
+          <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          <line x1="12" y1="9" x2="12" y2="13" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
+        Speed Violations
+      </h3>
+      <p class="muted-small mt-xs">
+        Threshold: {{ summary.violations.threshold_kmh }} km/h | Mode: {{ summary.violations.capture_mode }}
+      </p>
+    </div>
+    {% if is_danger %}
+    <div class="row-tight">
+      <a href="{{ url_for('speed.speed_artifact', job_id=job_id, filename='violations/violations.json') }}" class="btn"
+        download>📥 JSON</a>
+      <a href="{{ url_for('speed.speed_artifact', job_id=job_id, filename='violations/violations.csv') }}"
+        class="btn">📥 CSV</a>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if not is_danger %}
+  <div class="empty-state" style="padding:24px">
+    <span style="font-size:32px">✅</span>
+    <p class="muted-small mt-sm">No speed violations detected</p>
+  </div>
+  {% else %}
+  <div class="stat-badge mb-md" style="border-color:var(--danger)">
+    <span class="stat-value" style="color:var(--danger)">{{ summary.violations.count }}</span>
+    <span class="stat-label">Violations Detected</span>
+  </div>
+
+  <!-- Violations Gallery -->
+  <div class="violation-gallery">
+    {% for event in violations or [] %}
+    <div class="violation-card">
+      {% if event.image_crop %}
+      <a href="{{ url_for('speed.speed_artifact', job_id=job_id, filename=event.image_full if event.image_full else event.image_crop) }}"
+        target="_blank" title="View full frame">
+        <img src="{{ url_for('speed.speed_artifact', job_id=job_id, filename=event.image_crop) }}"
+          class="violation-card-img" alt="Violation #{{ event.event_id }}">
+      </a>
+      {% elif event.image_full %}
+      <a href="{{ url_for('speed.speed_artifact', job_id=job_id, filename=event.image_full) }}" target="_blank"
+        title="View full frame">
+        <img src="{{ url_for('speed.speed_artifact', job_id=job_id, filename=event.image_full) }}"
+          class="violation-card-img" alt="Violation #{{ event.event_id }}">
+      </a>
+      {% else %}
+      <div class="violation-card-img violation-card-noimg">No image</div>
+      {% endif %}
+      <div class="violation-card-body">
+        <div class="flex-between mb-xs">
+          <span class="violation-card-speed">{{ event.speed_kmh }} km/h</span>
+          <span class="muted-small">#{{ event.event_id }}</span>
+        </div>
+        <div class="violation-card-meta">
+          <div>Track: <span style="color:var(--text-primary)">{{ event.track_id }}</span> ({{ event.class_name }})</div>
+          <div>Time: <span style="color:var(--text-primary)">{{ "%.2f"|format(event.timestamp_s) }}s</span></div>
+          <div>Frame: <span style="color:var(--text-primary)">{{ event.frame_idx }}</span></div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- Traffic Study Results (TMC / Counting Lines)                  -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+{% if tmc and tmc.enabled %}
+<style>
+  /* ── TMC Hero Summary Cards ── */
+  .tmc-hero-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .tmc-hero-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color var(--transition), box-shadow var(--transition);
+  }
+
+  .tmc-hero-card:hover {
+    border-color: var(--border-default);
+    box-shadow: var(--shadow-md);
+  }
+
+  .tmc-hero-card .hero-icon {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    font-size: 28px;
+    opacity: 0.15;
+  }
+
+  .tmc-hero-card .hero-value {
+    font-size: 36px;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    margin-bottom: 4px;
+  }
+
+  .tmc-hero-card .hero-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .tmc-hero-card .hero-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 6px;
+  }
+
+  .tmc-hero-card.total {
+    border-left: 4px solid var(--success);
+  }
+
+  .tmc-hero-card.total .hero-value {
+    color: var(--success);
+  }
+
+  .tmc-hero-card.am-peak {
+    border-left: 4px solid var(--accent-orange);
+  }
+
+  .tmc-hero-card.am-peak .hero-value {
+    color: var(--accent-orange);
+  }
+
+  .tmc-hero-card.pm-peak {
+    border-left: 4px solid #3b82f6;
+  }
+
+  .tmc-hero-card.pm-peak .hero-value {
+    color: #3b82f6;
+  }
+
+  .tmc-hero-card.heavy {
+    border-left: 4px solid var(--warning);
+  }
+
+  .tmc-hero-card.heavy .hero-value {
+    color: var(--warning);
+  }
+
+  /* ── Export Buttons ── */
+  .tmc-export-bar {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+  }
+
+  .tmc-export-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 700;
+    text-decoration: none;
+    color: #fff;
+    transition: transform var(--transition), box-shadow var(--transition);
+    border: none;
+    cursor: pointer;
+  }
+
+  .tmc-export-btn:hover {
+    transform: translateY(-2px);
+    text-decoration: none;
+    color: #fff;
+  }
+
+  .tmc-export-btn.pdf {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+  }
+
+  .tmc-export-btn.pdf:hover {
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.35);
+  }
+
+  .tmc-export-btn.utdf {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+  }
+
+  .tmc-export-btn.utdf:hover {
+    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.35);
+  }
+
+  .tmc-export-btn.csv {
+    background: linear-gradient(135deg, #10b981, #059669);
+  }
+
+  .tmc-export-btn.csv:hover {
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
+  }
+
+  .tmc-export-btn .btn-icon {
+    font-size: 18px;
+  }
+
+  /* ── TMC Grouped Table ── */
+  .tmc-table-wrap {
+    overflow-x: auto;
+    margin-top: 12px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+  }
+
+  .tmc-table {
+    width: 100%;
+    min-width: 900px;
+    border-collapse: collapse;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tmc-table th,
+  .tmc-table td {
+    padding: 5px 8px;
+    text-align: center;
+    border-bottom: 1px solid var(--border-subtle);
+    white-space: nowrap;
+  }
+
+  .tmc-table th {
+    background: var(--bg-surface);
+    font-weight: 700;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  .tmc-table th.approach-group {
+    border-bottom: 2px solid var(--border-default);
+    font-size: 13px;
+    letter-spacing: 0.04em;
+  }
+
+  .tmc-table th.approach-NB {
+    color: #3b82f6;
+    border-bottom-color: #3b82f6;
+  }
+
+  .tmc-table th.approach-SB {
+    color: #ef4444;
+    border-bottom-color: #ef4444;
+  }
+
+  .tmc-table th.approach-EB {
+    color: #10b981;
+    border-bottom-color: #10b981;
+  }
+
+  .tmc-table th.approach-WB {
+    color: #f59e0b;
+    border-bottom-color: #f59e0b;
+  }
+
+  .tmc-table th.sub-col {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+
+  .tmc-table td.interval-cell {
+    font-weight: 700;
+    text-align: left;
+    padding-left: 12px;
+    background: var(--bg-surface);
+    position: sticky;
+    left: 0;
+    z-index: 1;
+  }
+
+  .tmc-table td.total-cell {
+    font-weight: 700;
+    background: rgba(249, 115, 22, 0.06);
+  }
+
+  .tmc-table tr.hour-total-row {
+    background: rgba(249, 115, 22, 0.08);
+    border-top: 2px solid var(--accent-orange);
+    border-bottom: 2px solid var(--accent-orange);
+  }
+
+  .tmc-table tr.hour-total-row td {
+    font-weight: 700;
+    color: var(--accent-orange);
+  }
+
+  .tmc-table tr.peak-row {
+    background: rgba(34, 197, 94, 0.06);
+  }
+
+  .tmc-table tr.peak-row td.interval-cell {
+    background: rgba(34, 197, 94, 0.10);
+  }
+
+  .tmc-table .heavy-sub {
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  /* ── Intersection Diagram ── */
+  .intersection-diagram-wrap {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0;
+  }
+
+  .intersection-diagram-wrap svg text {
+    font-family: var(--font-sans);
+  }
+
+  /* ── Detection Stats (small row) ── */
+  .tmc-detection-stats {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    padding: 12px 16px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    margin-bottom: 20px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .tmc-detection-stats .det-val {
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+</style>
+
+<section class="card" id="tmc-section">
+  <!-- Header -->
+  <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:20px">
+    <div>
+      <h3 class="mb-0">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px">
+          <rect x="3" y="3" width="7" height="7" />
+          <rect x="14" y="3" width="7" height="7" />
+          <rect x="3" y="14" width="7" height="7" />
+          <rect x="14" y="14" width="7" height="7" />
+        </svg>
+        Traffic Study Results (TMC)
+      </h3>
+      <p class="muted-small mt-xs">
+        {{ tmc.intersection_name|default("Intersection") }} &mdash; {{ tmc.study_date|default("") }}
+        {% if tmc.study_start and tmc.study_end %}
+        ({{ tmc.study_start }} – {{ tmc.study_end }})
+        {% endif %}
+      </p>
+    </div>
+  </div>
+
+  <!-- ── 1. Hero Summary Cards ── -->
+  {% if tmc.peak_hours %}
+  <div class="tmc-hero-grid">
+    <div class="tmc-hero-card total">
+      <span class="hero-icon">🚗</span>
+      <div class="hero-value">{{ "{:,}".format(tmc.total_volume|default(0)) }}</div>
+      <div class="hero-label">Total Volume</div>
+      <div class="hero-sub">{{ tmc.study_start|default("") }} – {{ tmc.study_end|default("") }} study period</div>
+    </div>
+    <div class="tmc-hero-card am-peak">
+      <span class="hero-icon">🌅</span>
+      <div class="hero-value">{{ tmc.peak_hours.am_peak_volume|default(0) }}</div>
+      <div class="hero-label">AM Peak Volume</div>
+      <div class="hero-sub">
+        {{ tmc.peak_hours.am_peak_hour|default("N/A") }}
+        &nbsp;·&nbsp; PHF {{ tmc.peak_hours.am_peak_phf|default(0) }}
+      </div>
+    </div>
+    <div class="tmc-hero-card pm-peak">
+      <span class="hero-icon">🌆</span>
+      <div class="hero-value">{{ tmc.peak_hours.pm_peak_volume|default(0) }}</div>
+      <div class="hero-label">PM Peak Volume</div>
+      <div class="hero-sub">
+        {{ tmc.peak_hours.pm_peak_hour|default("N/A") }}
+        &nbsp;·&nbsp; PHF {{ tmc.peak_hours.pm_peak_phf|default(0) }}
+      </div>
+    </div>
+    <div class="tmc-hero-card heavy">
+      <span class="hero-icon">🚛</span>
+      <div class="hero-value">{{ tmc.heavy_vehicle_pct|default(0)|round(1) }}%</div>
+      <div class="hero-label">Heavy Vehicle %</div>
+      <div class="hero-sub">Trucks &amp; Buses</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ── Detection stats (compact) ── -->
+  <div class="tmc-detection-stats">
+    <span>Line Crossings: <span class="det-val">{{ tmc.total_crossings|default(0) }}</span></span>
+    <span>Completed Movements: <span class="det-val">{{ tmc.total_movements|default(0) }}</span></span>
+    <span>Incomplete (Flushed): <span class="det-val">{{ tmc.flushed_incomplete|default(0) }}</span></span>
+  </div>
+
+  <!-- ── 2. Export Buttons ── -->
+  {% if tmc.report_files %}
+  <div class="tmc-export-bar">
+    {% if tmc.report_files.pdf %}
+    <a class="tmc-export-btn pdf"
+      href="{{ url_for('speed.speed_artifact', job_id=job_id, filename=tmc.report_files.pdf) }}" download>
+      <span class="btn-icon">📄</span> Download PDF Report
+    </a>
+    {% endif %}
+    {% if tmc.report_files.utdf_csv %}
+    <a class="tmc-export-btn utdf"
+      href="{{ url_for('speed.speed_artifact', job_id=job_id, filename=tmc.report_files.utdf_csv) }}">
+      <span class="btn-icon">📊</span> Download UTDF CSV (Synchro)
+    </a>
+    {% endif %}
+    {% if tmc.report_files.speed_csv %}
+    <a class="tmc-export-btn csv"
+      href="{{ url_for('speed.speed_artifact', job_id=job_id, filename=tmc.report_files.speed_csv) }}">
+      <span class="btn-icon">📥</span> Download Speed Data CSV
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- ── 3. Intersection Approach Volume Diagram ── -->
+  {% if tmc.tmc_data %}
+  <details open class="mt-md">
+    <summary class="details-summary">🔀 Intersection Approach Volume Diagram</summary>
+    <div class="intersection-diagram-wrap mt-sm">
+      <svg id="tmc-diagram" width="520" height="520" viewBox="0 0 520 520"></svg>
+    </div>
+  </details>
+  {% endif %}
+
+  <!-- ── 4. TMC Grouped Data Table ── -->
+  {% if tmc.tmc_data %}
+  <details class="mt-md">
+    <summary class="details-summary">📊 15-Minute Interval Data (Grouped TMC Format)</summary>
+    <div class="tmc-table-wrap mt-sm" id="tmc-grouped-table-wrap">
+      <!-- Table built by JS from tmc_data JSON -->
+      <p class="muted-small" style="padding:16px;text-align:center">Building table…</p>
+    </div>
+  </details>
+
+  <!-- ── 5. Raw interval data (legacy, collapsed) ── -->
+  <details class="mt-md">
+    <summary class="details-summary">📋 Raw Interval Data ({{ tmc.tmc_data|length }} rows)</summary>
+    <div class="table-scroll-wrapper mt-sm">
+      <table style="font-size:12px">
+        <thead>
+          <tr>
+            <th>Interval</th>
+            <th>Approach</th>
+            <th>Movement</th>
+            <th class="text-right">Total</th>
+            <th class="text-right">Heavy</th>
+            <th class="text-right">Peds</th>
+            <th class="text-right">Bikes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for bin in tmc.tmc_data %}
+          {% if bin.total > 0 or bin.pedestrian_count > 0 or bin.bicycle_count > 0 %}
+          <tr>
+            <td style="font-weight:600">{{ bin.interval_start }}</td>
+            <td>
+              <span
+                style="display:inline-block;min-width:28px;text-align:center;background:var(--bg-surface);padding:1px 6px;border-radius:8px;font-size:11px;font-weight:600">{{
+                bin.approach }}</span>
+            </td>
+            <td style="text-align:center">
+              {% if bin.movement == 'L' %}↰ Left
+              {% elif bin.movement == 'T' %}↑ Thru
+              {% elif bin.movement == 'R' %}↱ Right
+              {% elif bin.movement == 'U' %}↶ U-Turn
+              {% else %}{{ bin.movement }}{% endif %}
+            </td>
+            <td class="text-right" style="font-weight:600">{{ bin.total }}</td>
+            <td class="text-right {% if bin.heavy_vehicle_count > 0 %}text-warning{% endif %}">{{
+              bin.heavy_vehicle_count }}</td>
+            <td class="text-right">{{ bin.pedestrian_count }}</td>
+            <td class="text-right">{{ bin.bicycle_count }}</td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {% endif %}
+</section>
+
+<!-- ── TMC JS: grouped table builder + intersection diagram ── -->
+<script>
+  (function () {
+    const tmcData = {{ tmc.tmc_data|default ([]) | tojson | safe
+  }};
+  const peakHours = {{ tmc.peak_hours|default ({}) | tojson | safe }};
+  if (!tmcData || tmcData.length === 0) return;
+
+  // ── Colour map for approaches ──
+  const DIR_COLORS = { NB: '#3b82f6', SB: '#ef4444', EB: '#10b981', WB: '#f59e0b' };
+  const APPROACHES = ['NB', 'SB', 'EB', 'WB'];
+  const MOVEMENTS = ['L', 'T', 'R', 'U'];
+  const MOV_SYMBOLS = { L: '↰', T: '↑', R: '↱', U: '↶' };
+
+  // ── Parse peak hour interval labels from strings like "07:45-08:45" ──
+  function parsePeakIntervals(peakStr) {
+    if (!peakStr || peakStr === 'N/A') return [];
+    const parts = peakStr.split('-');
+    if (parts.length !== 2) return [];
+    const start = parts[0].trim();
+    const end = parts[1].trim();
+    // Generate 15-min labels from start to end (exclusive)
+    const labels = [];
+    let [h, m] = start.split(':').map(Number);
+    const [eh, em] = end.split(':').map(Number);
+    for (let i = 0; i < 8; i++) {  // safety limit
+      const lbl = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+      labels.push(lbl);
+      m += 15;
+      if (m >= 60) { h++; m -= 60; }
+      if (h > eh || (h === eh && m > em)) break;
+      if (h === eh && m === em) break;
+    }
+    return labels;
+  }
+  const amPeakIntervals = new Set(parsePeakIntervals(peakHours.am_peak_hour || ''));
+  const pmPeakIntervals = new Set(parsePeakIntervals(peakHours.pm_peak_hour || ''));
+
+  // ── Build pivot: { interval: { NB: { L:count, T:count, ... , heavy:n }, ... }, ... } ──
+  const pivot = {};          // interval -> approach -> { L, T, R, U, total, heavy, peds, bikes }
+  const approachTotals = {}; // approach -> { L, T, R, U, total, heavy }
+  APPROACHES.forEach(a => { approachTotals[a] = { L: 0, T: 0, R: 0, U: 0, total: 0, heavy: 0 }; });
+
+  const intervals = [];  // ordered unique interval labels
+  const intervalSet = new Set();
+
+  tmcData.forEach(b => {
+    if (!intervalSet.has(b.interval_start)) {
+      intervalSet.add(b.interval_start);
+      intervals.push(b.interval_start);
+    }
+    if (!pivot[b.interval_start]) pivot[b.interval_start] = {};
+    if (!pivot[b.interval_start][b.approach]) {
+      pivot[b.interval_start][b.approach] = { L: 0, T: 0, R: 0, U: 0, total: 0, heavy: 0, peds: 0, bikes: 0 };
+    }
+    const cell = pivot[b.interval_start][b.approach];
+    if (MOVEMENTS.includes(b.movement)) {
+      cell[b.movement] += b.total;
+    }
+    cell.total += b.total;
+    cell.heavy += b.heavy_vehicle_count;
+    cell.peds += b.pedestrian_count;
+    cell.bikes += b.bicycle_count;
+
+    // Approach totals
+    if (approachTotals[b.approach]) {
+      if (MOVEMENTS.includes(b.movement)) approachTotals[b.approach][b.movement] += b.total;
+      approachTotals[b.approach].total += b.total;
+      approachTotals[b.approach].heavy += b.heavy_vehicle_count;
+    }
+  });
+
+  // ── Determine which approaches have data ──
+  const activeApproaches = APPROACHES.filter(a => approachTotals[a].total > 0);
+  if (activeApproaches.length === 0) return;
+
+  // ── Build the grouped HTML table ──
+  const wrap = document.getElementById('tmc-grouped-table-wrap');
+  if (!wrap) return;
+
+  let html = '<table class="tmc-table">';
+
+  // Header row 1: approach groups
+  html += '<thead><tr><th rowspan="2" style="text-align:left;padding-left:12px;min-width:70px">Interval</th>';
+  activeApproaches.forEach(a => {
+    html += `<th colspan="4" class="approach-group approach-${a}">${a}</th>`;
+  });
+  html += '<th rowspan="2" class="approach-group" style="color:var(--accent-orange)">INT<br>Total</th>';
+  html += '<th rowspan="2" class="approach-group" style="color:var(--warning)">Heavy</th>';
+  html += '</tr>';
+
+  // Header row 2: L/T/R/U sub-columns
+  html += '<tr>';
+  activeApproaches.forEach(a => {
+    MOVEMENTS.forEach(m => {
+      html += `<th class="sub-col">${MOV_SYMBOLS[m]} ${m}</th>`;
+    });
+  });
+  html += '</tr></thead><tbody>';
+
+  // ── Data rows ──
+  let hourAccum = {};  // accumulate 4 intervals for hourly totals
+  let hourCount = 0;
+  let lastHourStart = '';
+
+  intervals.forEach((intv, idx) => {
+    const isPeakAM = amPeakIntervals.has(intv);
+    const isPeakPM = pmPeakIntervals.has(intv);
+    const isPeak = isPeakAM || isPeakPM;
+    const rowClass = isPeak ? ' class="peak-row"' : '';
+
+    html += `<tr${rowClass}>`;
+    html += `<td class="interval-cell">${intv}${isPeakAM ? ' <span style="color:var(--accent-orange);font-size:10px">AM</span>' : ''}${isPeakPM ? ' <span style="color:#3b82f6;font-size:10px">PM</span>' : ''}</td>`;
+
+    let rowTotal = 0;
+    let rowHeavy = 0;
+
+    activeApproaches.forEach(a => {
+      const cell = (pivot[intv] && pivot[intv][a]) || { L: 0, T: 0, R: 0, U: 0, total: 0, heavy: 0 };
+      MOVEMENTS.forEach(m => {
+        const v = cell[m] || 0;
+        html += `<td>${v > 0 ? v : '<span style="opacity:0.25">0</span>'}</td>`;
+      });
+      rowTotal += cell.total;
+      rowHeavy += cell.heavy;
+    });
+
+    html += `<td class="total-cell">${rowTotal}</td>`;
+    html += `<td>${rowHeavy > 0 ? '<span style="color:var(--warning)">' + rowHeavy + '</span>' : '<span style="opacity:0.25">0</span>'}</td>`;
+    html += '</tr>';
+
+    // ── Hourly subtotal every 4 rows ──
+    if (!hourAccum._started) { hourAccum = {}; hourCount = 0; lastHourStart = intv; hourAccum._started = true; }
+    // Accumulate
+    activeApproaches.forEach(a => {
+      if (!hourAccum[a]) hourAccum[a] = { L: 0, T: 0, R: 0, U: 0, total: 0, heavy: 0 };
+      const cell = (pivot[intv] && pivot[intv][a]) || { L: 0, T: 0, R: 0, U: 0, total: 0, heavy: 0 };
+      MOVEMENTS.forEach(m => { hourAccum[a][m] += (cell[m] || 0); });
+      hourAccum[a].total += cell.total;
+      hourAccum[a].heavy += cell.heavy;
+    });
+    hourCount++;
+
+    if (hourCount === 4 || idx === intervals.length - 1) {
+      // Emit hour total row
+      html += '<tr class="hour-total-row">';
+      html += `<td class="interval-cell" style="background:rgba(249,115,22,0.08)">${lastHourStart} hr</td>`;
+      let hrTotal = 0, hrHeavy = 0;
+      activeApproaches.forEach(a => {
+        const ha = hourAccum[a] || { L: 0, T: 0, R: 0, U: 0, total: 0, heavy: 0 };
+        MOVEMENTS.forEach(m => {
+          html += `<td>${ha[m] || ''}</td>`;
+        });
+        hrTotal += ha.total;
+        hrHeavy += ha.heavy;
+      });
+      html += `<td class="total-cell">${hrTotal}</td>`;
+      html += `<td>${hrHeavy > 0 ? hrHeavy : ''}</td>`;
+      html += '</tr>';
+      // Reset
+      hourAccum = { _started: true }; hourCount = 0; lastHourStart = intervals[idx + 1] || '';
+    }
+  });
+
+  // ── Grand total row ──
+  html += '<tr style="border-top:3px solid var(--accent-orange);background:rgba(249,115,22,0.10)">';
+  html += '<td class="interval-cell" style="font-size:13px;background:rgba(249,115,22,0.10)">TOTAL</td>';
+  let gt = 0, gh = 0;
+  activeApproaches.forEach(a => {
+    const at = approachTotals[a];
+    MOVEMENTS.forEach(m => {
+      html += `<td style="font-weight:700">${at[m] || ''}</td>`;
+    });
+    gt += at.total;
+    gh += at.heavy;
+  });
+  html += `<td class="total-cell" style="font-size:14px">${gt}</td>`;
+  html += `<td style="font-weight:700;color:var(--warning)">${gh || ''}</td>`;
+  html += '</tr></tbody></table>';
+
+  wrap.innerHTML = html;
+
+  // ══════════════════════════════════════════════════════════════
+  //  Intersection Approach Volume Diagram (SVG)
+  // ══════════════════════════════════════════════════════════════
+  const svgEl = document.getElementById('tmc-diagram');
+  if (!svgEl) return;
+
+  const W = 520, H = 520, CX = W / 2, CY = H / 2;
+  const BOX = 120;   // intersection box half-size
+  const ARM = 100;   // approach arm length
+
+  // Utility: create SVG element
+  function svgNew(tag, attrs) {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    return el;
+  }
+
+  // Draw intersection box
+  const box = svgNew('rect', {
+    x: CX - BOX, y: CY - BOX, width: BOX * 2, height: BOX * 2,
+    rx: 12, fill: 'rgba(255,255,255,0.04)', stroke: 'rgba(255,255,255,0.2)', 'stroke-width': 2
+  });
+  svgEl.appendChild(box);
+
+  // Center label
+  const cLabel = svgNew('text', {
+    x: CX, y: CY, fill: 'rgba(255,255,255,0.3)',
+    'font-size': '13', 'font-weight': '700', 'text-anchor': 'middle', 'dominant-baseline': 'middle'
+  });
+  cLabel.textContent = '{{ tmc.intersection_name|default("INT")|truncate(16, true, "…") }}';
+  svgEl.appendChild(cLabel);
+
+  // Approach definitions: where arrow starts, where it points, text anchor
+  const approachDefs = {
+    NB: { sx: CX, sy: CY + BOX + ARM, ex: CX, ey: CY + BOX + 10, tx: CX, ty: CY + BOX + ARM + 20, anchor: 'middle' },
+    SB: { sx: CX, sy: CY - BOX - ARM, ex: CX, ey: CY - BOX - 10, tx: CX, ty: CY - BOX - ARM - 10, anchor: 'middle' },
+    EB: { sx: CX - BOX - ARM, sy: CY, ex: CX - BOX - 10, ey: CY, tx: CX - BOX - ARM - 10, ty: CY, anchor: 'end' },
+    WB: { sx: CX + BOX + ARM, sy: CY, ex: CX + BOX + 10, ey: CY, tx: CX + BOX + ARM + 10, ty: CY, anchor: 'start' },
+  };
+
+  // Movement label positions (offset from approach arrow)
+  const movOffsets = {
+    NB: { L: [-50, -25], T: [0, -25], R: [50, -25] },
+    SB: { L: [50, 25], T: [0, 25], R: [-50, 25] },
+    EB: { L: [25, 50], T: [25, 0], R: [25, -50] },
+    WB: { L: [-25, -50], T: [-25, 0], R: [-25, 50] },
+  };
+
+  activeApproaches.forEach(a => {
+    const def = approachDefs[a];
+    const at = approachTotals[a];
+    const color = DIR_COLORS[a];
+    if (!def) return;
+
+    // Arrow line
+    const line = svgNew('line', {
+      x1: def.sx, y1: def.sy, x2: def.ex, y2: def.ey,
+      stroke: color, 'stroke-width': Math.max(3, Math.min(10, at.total / 20)),
+      'stroke-linecap': 'round', opacity: '0.8'
+    });
+    svgEl.appendChild(line);
+
+    // Arrowhead
+    const dx = def.ex - def.sx, dy = def.ey - def.sy;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const ux = dx / len, uy = dy / len;
+    const aw = 10;
+    const ah = 8;
+    const tipX = def.ex, tipY = def.ey;
+    const p1x = tipX - ux * aw + uy * ah, p1y = tipY - uy * aw - ux * ah;
+    const p2x = tipX - ux * aw - uy * ah, p2y = tipY - uy * aw + ux * ah;
+    const arrow = svgNew('polygon', {
+      points: `${tipX},${tipY} ${p1x},${p1y} ${p2x},${p2y}`,
+      fill: color, opacity: '0.9'
+    });
+    svgEl.appendChild(arrow);
+
+    // Approach total label
+    const totalLabel = svgNew('text', {
+      x: def.tx, y: def.ty, fill: color,
+      'font-size': '18', 'font-weight': '800', 'text-anchor': def.anchor, 'dominant-baseline': 'middle'
+    });
+    totalLabel.textContent = at.total.toLocaleString();
+    svgEl.appendChild(totalLabel);
+
+    // Direction label
+    const dirLabel = svgNew('text', {
+      x: def.tx, y: def.ty + (a === 'NB' ? 18 : a === 'SB' ? -16 : 0),
+      dx: (a === 'EB' ? 0 : a === 'WB' ? 0 : 0),
+      fill: 'rgba(255,255,255,0.5)',
+      'font-size': '12', 'font-weight': '600', 'text-anchor': def.anchor, 'dominant-baseline': 'middle'
+    });
+    if (a === 'NB' || a === 'SB') dirLabel.setAttribute('y', parseFloat(def.ty) + (a === 'NB' ? 18 : -16));
+    if (a === 'EB' || a === 'WB') dirLabel.setAttribute('y', parseFloat(def.ty) + 18);
+    dirLabel.textContent = a;
+    svgEl.appendChild(dirLabel);
+
+    // L / T / R movement volumes near the intersection box
+    const mid = { x: (def.sx + def.ex) / 2, y: (def.sy + def.ey) / 2 };
+    ['L', 'T', 'R'].forEach(m => {
+      const vol = at[m];
+      if (vol === 0) return;
+      const off = (movOffsets[a] && movOffsets[a][m]) || [0, 0];
+      const mx = mid.x + off[0], my = mid.y + off[1];
+      const bg = svgNew('rect', {
+        x: mx - 20, y: my - 10, width: 40, height: 20, rx: 6,
+        fill: 'rgba(0,0,0,0.5)', stroke: color, 'stroke-width': 0.5
+      });
+      svgEl.appendChild(bg);
+      const mLabel = svgNew('text', {
+        x: mx, y: my + 1, fill: '#fff',
+        'font-size': '11', 'font-weight': '700', 'text-anchor': 'middle', 'dominant-baseline': 'middle'
+      });
+      mLabel.textContent = `${MOV_SYMBOLS[m]}${vol}`;
+      svgEl.appendChild(mLabel);
+    });
+  });
+}) ();
+</script>
+{% endif %}
+
+<!-- Per-Track Details -->
+{% if summary.per_track and summary.per_track|length > 0 %}
+<section class="card">
+  <h3>Per-Track Statistics</h3>
+  <div class="table-scroll-wrapper mt-md">
+    <table>
+      <thead>
+        <tr>
+          <th>Track ID</th>
+          <th>Class</th>
+          <th class="text-right">Avg Speed</th>
+          <th class="text-right">Max Speed</th>
+          <th class="text-right">Frames</th>
+          <th class="text-right">Rejected</th>
+          <th class="text-right">Start</th>
+          <th class="text-right">End</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for tid, stats in summary.per_track.items()|sort(attribute='1.max_kph', reverse=true) %}
+        <tr>
+          <td style="font-weight:600">#{{ tid }}</td>
+          <td>{{ stats.class }}</td>
+          <td class="text-right">{{ stats.avg_kph|round(1) }} km/h</td>
+          <td
+            class="text-right {% if stats.max_kph > 80 %}text-warning{% elif stats.max_kph > 50 %}text-accent{% endif %}">
+            {{ stats.max_kph|round(1) }} km/h
+          </td>
+          <td class="text-right">{{ stats.frames_seen }}</td>
+          <td class="text-right {% if stats.rejected_updates > 0 %}text-warning{% endif %}">
+            {{ stats.rejected_updates|default(0) }}
+          </td>
+          <td class="text-right text-muted">{{ stats.start_frame }}</td>
+          <td class="text-right text-muted">{{ stats.end_frame }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<!-- Settings Used -->
+<section class="card" style="background:var(--bg-surface)">
+  <h3>Settings Used</h3>
+  {% if summary.settings_used %}
+  <details open class="mt-md">
+    <summary class="details-summary">Detection & Tracking</summary>
+    <div class="grid-settings mt-sm">
+      <div><span class="muted-small">Min Confidence:</span> {{ summary.settings_used.min_conf }}</div>
+      <div><span class="muted-small">Max Det/Frame:</span> {{ summary.settings_used.max_det_per_frame }}</div>
+      <div><span class="muted-small">Min Box Area:</span> {{ summary.settings_used.min_box_area }} px²</div>
+      <div><span class="muted-small">Track Threshold:</span> {{ summary.settings_used.track_thresh }}</div>
+      <div><span class="muted-small">Match Threshold:</span> {{ summary.settings_used.match_thresh }}</div>
+      <div><span class="muted-small">Track Buffer:</span> {{ summary.settings_used.track_buffer }} frames</div>
+    </div>
+  </details>
+  <details class="mt-md">
+    <summary class="details-summary">Speed Calculation</summary>
+    <div class="grid-settings mt-sm">
+      <div><span class="muted-small">Max Speed:</span> {{ summary.settings_used.max_kph }} km/h</div>
+      <div><span class="muted-small">Smoothing Window:</span> {{ summary.settings_used.smoothing_window_s }}s</div>
+      <div><span class="muted-small">Min dt:</span> {{ summary.settings_used.min_dt_s }}s</div>
+      <div><span class="muted-small">Outlier Reject:</span> {{ summary.settings_used.outlier_reject_kph_per_s }} km/h/s
+      </div>
+      <div><span class="muted-small">Median Filter N:</span> {{ summary.settings_used.median_filter_n }}</div>
+      <div><span class="muted-small">Jump Reject:</span> {{ summary.settings_used.jump_reject_m }}m</div>
+    </div>
+  </details>
+  <details class="mt-md">
+    <summary class="details-summary">Performance</summary>
+    <div class="grid-settings mt-sm">
+      <div><span class="muted-small">Frame Skip:</span> {{ summary.settings_used.frame_skip }}</div>
+      <div><span class="muted-small">Resize Width:</span> {% if summary.settings_used.resize_width > 0 %}{{
+        summary.settings_used.resize_width }}px{% else %}Original{% endif %}</div>
+      <div><span class="muted-small">Output FPS:</span> {{ summary.output_fps|round(1) }}</div>
+    </div>
+  </details>
+  <details class="mt-md">
+    <summary class="details-summary">Trail Visualization</summary>
+    <div class="grid-settings mt-sm">
+      <div><span class="muted-small">Trails Enabled:</span>
+        {% if summary.settings_used.enable_trails %}<span class="text-success">✓ Yes</span>{% else %}<span
+          class="text-muted">✗ No</span>{% endif %}
+      </div>
+      {% if summary.settings_used.enable_trails %}
+      <div><span class="muted-small">Duration:</span> {{ summary.settings_used.trail_seconds }}s</div>
+      <div><span class="muted-small">Max Points:</span> {{ summary.settings_used.trail_max_points }}</div>
+      <div><span class="muted-small">Stride:</span> {{ summary.settings_used.trail_stride }}</div>
+      <div><span class="muted-small">Thickness:</span> {{ summary.settings_used.trail_thickness }}px</div>
+      <div><span class="muted-small">Alpha:</span> {{ summary.settings_used.trail_alpha }}</div>
+      <div><span class="muted-small">Fade:</span> {% if summary.settings_used.trail_fade %}Yes{% else %}No{% endif %}
+      </div>
+      <div><span class="muted-small">Anchor:</span> {{ summary.settings_used.trail_anchor }}</div>
+      {% endif %}
+    </div>
+  </details>
+  <details class="mt-md">
+    <summary class="details-summary">Violation Detection</summary>
+    <div class="grid-settings mt-sm">
+      <div><span class="muted-small">Violations Enabled:</span>
+        {% if summary.settings_used.violation_enabled %}<span style="color:var(--danger)">✓ Yes</span>{% else %}<span
+          class="text-muted">✗ No</span>{% endif %}
+      </div>
+      {% if summary.settings_used.violation_enabled %}
+      <div><span class="muted-small">Threshold:</span> {{ summary.settings_used.violation_speed_kmh }} km/h</div>
+      <div><span class="muted-small">Min Duration:</span> {{ summary.settings_used.violation_min_seconds }}s</div>
+      <div><span class="muted-small">Cooldown:</span> {{ summary.settings_used.violation_cooldown_seconds }}s</div>
+      <div><span class="muted-small">Capture Mode:</span> {{ summary.settings_used.violation_capture_mode }}</div>
+      <div><span class="muted-small">Save Full:</span> {% if summary.settings_used.violation_save_full_frame %}Yes{%
+        else %}No{% endif %}</div>
+      <div><span class="muted-small">Save Crop:</span> {% if summary.settings_used.violation_save_crop %}Yes{% else
+        %}No{% endif %}</div>
+      <div><span class="muted-small">Crop Padding:</span> {{ summary.settings_used.violation_crop_padding_px }}px</div>
+      {% endif %}
+    </div>
+  </details>
+  {% else %}
+  <div class="grid-settings mt-sm">
+    <div><span class="muted-small">Max Speed:</span> {{ summary.config.max_kph }} km/h</div>
+    <div><span class="muted-small">Window:</span> {{ summary.config.window_s }}s</div>
+    <div><span class="muted-small">Min dt:</span> {{ summary.config.min_dt_s }}s</div>
+    <div><span class="muted-small">Confidence:</span> {{ summary.config.conf_threshold }}</div>
+  </div>
+  {% endif %}
+
+  <p class="muted-small mt-md">
+    Settings fingerprint: <code>{{ summary.settings_fingerprint|default('N/A') }}</code>
+    {% if summary.source_page %}
+    <br>Source: <code>{{ summary.source_page }}</code> | Type: <code>{{ summary.analysis_type }}</code>
+    {% endif %}
+  </p>
+</section>
+
+<script>
+  /* ── Video player controls ── */
+  (function () {
+    const video = document.getElementById('result-video');
+    if (!video) return;
+    const fps = {{ summary.fps|default (30) | round(1)
+  }};
+
+  // Playback rate buttons
+  document.querySelectorAll('.playback-rate-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const rate = parseFloat(btn.dataset.rate);
+      video.playbackRate = rate;
+      document.querySelectorAll('.playback-rate-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
+  // Frame step buttons
+  document.getElementById('frame-back')?.addEventListener('click', () => {
+    video.pause();
+    video.currentTime = Math.max(0, video.currentTime - 1 / fps);
+  });
+  document.getElementById('frame-fwd')?.addEventListener('click', () => {
+    video.pause();
+    video.currentTime = Math.min(video.duration, video.currentTime + 1 / fps);
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.key === 'ArrowLeft') { video.pause(); video.currentTime = Math.max(0, video.currentTime - 1 / fps); e.preventDefault(); }
+    if (e.key === 'ArrowRight') { video.pause(); video.currentTime += 1 / fps; e.preventDefault(); }
+    if (e.key === ' ') { e.preventDefault(); video.paused ? video.play() : video.pause(); }
+  });
+  }) ();
+
+  /* ── Vanilla Charts ── */
+  (function () {
+    // Build per-track data from the template
+    const perTrack = {
+      {% if summary.per_track %}
+    {% for tid, stats in summary.per_track.items() %}
+    "{{ tid }}": { class: "{{ stats.class }}", max_kph: { { stats.max_kph | round(1) } }, avg_kph: { { stats.avg_kph | round(1) } } },
+    {% endfor %}
+    {% endif %}
+  };
+
+  const tracks = Object.values(perTrack);
+  if (tracks.length === 0) return;
+
+  // ── Speed Histogram ──
+  const histCanvas = document.getElementById('chart-histogram');
+  if (histCanvas) {
+    const ctx = histCanvas.getContext('2d');
+    const speeds = tracks.map(t => t.max_kph);
+    const maxSpeed = Math.ceil(Math.max(...speeds) / 10) * 10;
+    const binSize = Math.max(5, Math.round(maxSpeed / 10));
+    const numBins = Math.ceil(maxSpeed / binSize);
+    const bins = new Array(numBins).fill(0);
+    speeds.forEach(s => { const i = Math.min(Math.floor(s / binSize), numBins - 1); bins[i]++; });
+    const maxCount = Math.max(...bins, 1);
+
+    function drawHistogram() {
+      const W = histCanvas.width = histCanvas.clientWidth * (window.devicePixelRatio || 1);
+      const H = histCanvas.height = histCanvas.clientHeight * (window.devicePixelRatio || 1);
+      ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+      const w = histCanvas.clientWidth, h = histCanvas.clientHeight;
+      const pad = { top: 20, right: 20, bottom: 40, left: 45 };
+      const plotW = w - pad.left - pad.right;
+      const plotH = h - pad.top - pad.bottom;
+      const barW = plotW / numBins - 4;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Gridlines
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--border-default').trim();
+      ctx.lineWidth = 0.5;
+      for (let i = 0; i <= 4; i++) {
+        const y = pad.top + plotH - (plotH * i / 4);
+        ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(w - pad.right, y); ctx.stroke();
+      }
+
+      // Bars
+      const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+      bins.forEach((count, i) => {
+        const x = pad.left + i * (plotW / numBins) + 2;
+        const barH = (count / maxCount) * plotH;
+        ctx.fillStyle = accent;
+        ctx.globalAlpha = 0.8;
+        ctx.beginPath();
+        ctx.roundRect(x, pad.top + plotH - barH, barW, barH, [4, 4, 0, 0]);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        // X labels
+        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
+        ctx.font = '11px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${i * binSize}`, x + barW / 2, h - pad.bottom + 16);
+      });
+
+      // Y axis labels
+      ctx.textAlign = 'right';
+      for (let i = 0; i <= 4; i++) {
+        const y = pad.top + plotH - (plotH * i / 4);
+        ctx.fillText(Math.round(maxCount * i / 4), pad.left - 8, y + 4);
+      }
+
+      // Axis titles
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary').trim();
+      ctx.font = '12px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Speed (km/h)', w / 2, h - 4);
+      ctx.save();
+      ctx.translate(12, h / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText('Count', 0, 0);
+      ctx.restore();
+    }
+    drawHistogram();
+    window.addEventListener('resize', drawHistogram);
+  }
+
+  // ── Class Breakdown Donut ──
+  const donutCanvas = document.getElementById('chart-class-breakdown');
+  if (donutCanvas) {
+    const ctx2 = donutCanvas.getContext('2d');
+    const classCounts = {};
+    tracks.forEach(t => { classCounts[t.class] = (classCounts[t.class] || 0) + 1; });
+    const entries = Object.entries(classCounts).sort((a, b) => b[1] - a[1]);
+    const total = entries.reduce((s, e) => s + e[1], 0);
+    const colors = ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#ec4899', '#6366f1'];
+
+    function drawDonut() {
+      const W = donutCanvas.width = donutCanvas.clientWidth * (window.devicePixelRatio || 1);
+      const H = donutCanvas.height = donutCanvas.clientHeight * (window.devicePixelRatio || 1);
+      ctx2.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+      const w = donutCanvas.clientWidth, h = donutCanvas.clientHeight;
+      const cx = w * 0.35, cy = h / 2;
+      const r = Math.min(cx - 20, cy - 20);
+      const inner = r * 0.55;
+
+      ctx2.clearRect(0, 0, w, h);
+
+      let startAngle = -Math.PI / 2;
+      entries.forEach(([cls, count], i) => {
+        const slice = (count / total) * Math.PI * 2;
+        ctx2.beginPath();
+        ctx2.arc(cx, cy, r, startAngle, startAngle + slice);
+        ctx2.arc(cx, cy, inner, startAngle + slice, startAngle, true);
+        ctx2.closePath();
+        ctx2.fillStyle = colors[i % colors.length];
+        ctx2.fill();
+        startAngle += slice;
+      });
+
+      // Center text
+      ctx2.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim();
+      ctx2.font = 'bold 22px Inter, sans-serif';
+      ctx2.textAlign = 'center';
+      ctx2.fillText(total, cx, cy + 4);
+      ctx2.font = '11px Inter, sans-serif';
+      ctx2.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
+      ctx2.fillText('tracks', cx, cy + 20);
+
+      // Legend
+      const legX = w * 0.65;
+      let legY = 24;
+      ctx2.textAlign = 'left';
+      entries.forEach(([cls, count], i) => {
+        ctx2.fillStyle = colors[i % colors.length];
+        ctx2.fillRect(legX, legY - 8, 12, 12);
+        ctx2.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim();
+        ctx2.font = '13px Inter, sans-serif';
+        ctx2.fillText(`${cls} (${count})`, legX + 18, legY + 2);
+        legY += 24;
+      });
+    }
+    drawDonut();
+    window.addEventListener('resize', drawDonut);
+  }
+  }) ();
+</script>
+{% endblock %}

@@ -1,0 +1,266 @@
+{% extends "index.html" %}
+{% block title %}Offline Analysis — Traffic Analysis Dashboard{% endblock %}
+{% block breadcrumb %}
+<nav class="breadcrumb" aria-label="Breadcrumb">
+  <a href="/">Home</a>
+  <span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Offline Analysis</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-4px;margin-right:6px">
+      <circle cx="12" cy="12" r="10" />
+      <polygon points="10 8 16 12 10 16 10 8" />
+    </svg>
+    Offline Video Analysis
+  </h1>
+  <p class="page-subtitle">Upload a video for YOLO object detection with ByteTrack tracking and speed estimation</p>
+</div>
+
+<section class="card card-static">
+  <form id="offline-form" method="post" enctype="multipart/form-data">
+    <!-- File Upload Section -->
+    <div class="form-section">
+      <div class="form-section-title">📁 Video File</div>
+      <div class="file-drop-zone" id="offline-drop-zone">
+        <div class="file-drop-zone-icon">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+        </div>
+        <p class="file-drop-zone-text">Drag & drop video here or click to browse</p>
+        <p class="file-drop-zone-hint">MP4, MOV, AVI, MKV, WebM, ROS bags (.db3)</p>
+        <p class="file-drop-zone-name" id="offline-file-name"></p>
+        <input type="file" name="file" accept="video/*,.db3,.bag" required aria-label="Choose video file"
+          id="offline-file-input" />
+      </div>
+    </div>
+
+    <!-- Model Settings -->
+    <div class="form-section">
+      <div class="form-section-title">⚙️ Model Settings</div>
+      <div class="form-grid">
+        <label>Model
+          <input type="text" name="model" value="yolo11n.pt" placeholder="yolo11n.pt" />
+        </label>
+        <label>Confidence
+          <input type="number" step="0.01" min="0.1" max="1" name="conf" value="0.25" />
+        </label>
+        <label>Device
+          <select name="device">
+            <option value="cpu" selected>CPU</option>
+            <option value="cuda">CUDA (GPU)</option>
+            <option value="mps">MPS (Apple Silicon)</option>
+          </select>
+        </label>
+        <label>Meters/Pixel
+          <input type="number" step="0.001" min="0.001" name="meters_per_pixel" value="0.05" />
+        </label>
+      </div>
+    </div>
+
+    <!-- Track Classes -->
+    <div class="form-section">
+      <div class="form-section-title">🏷️ Objects to Track</div>
+      <div class="flex-center" style="gap:20px;flex-wrap:wrap">
+        <label class="flex-center" style="gap:8px;cursor:pointer">
+          <input type="checkbox" id="inc-vehicles" checked>
+          <span>🚗 Vehicles</span>
+        </label>
+        <label class="flex-center" style="gap:8px;cursor:pointer">
+          <input type="checkbox" id="inc-person">
+          <span>🚶 Pedestrians</span>
+        </label>
+        <label class="flex-center" style="gap:8px;cursor:pointer">
+          <input type="checkbox" id="inc-bicycle">
+          <span>🚲 Bicycles</span>
+        </label>
+      </div>
+    </div>
+
+    <button type="submit" class="btn primary btn-full-wide" id="btn-analyze">
+      🚀 Start Analysis
+    </button>
+  </form>
+</section>
+
+<!-- Progress Section -->
+<section id="status" class="card" style="display:none;">
+  <div class="results-header">
+    <h3 class="results-title">Processing Video</h3>
+    <span class="status-indicator running" id="status-badge">
+      <span id="state">Running</span>
+    </span>
+  </div>
+  <div class="progress" style="height:22px;margin-bottom:12px">
+    <div id="bar" class="bar" style="width:0%;height:22px"><span id="pct">0%</span></div>
+  </div>
+  <div class="muted-small" id="msg">Initializing...</div>
+</section>
+
+<!-- Results Section -->
+<section id="results" class="card" style="display:none;">
+  <div class="results-header">
+    <h3 class="results-title">✅ Analysis Complete</h3>
+    <div class="results-actions">
+      <a id="csv" href="#" class="btn">📊 CSV</a>
+      <a id="json" href="#" class="btn">📋 Summary</a>
+    </div>
+  </div>
+  <div class="video-player-wrap">
+    <video id="video" controls playsinline></video>
+  </div>
+</section>
+
+<!-- Statistics Section -->
+<section id="stats" class="card" style="display:none;">
+  <h3 class="results-title mb-md">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px">
+      <line x1="18" y1="20" x2="18" y2="10" />
+      <line x1="12" y1="20" x2="12" y2="4" />
+      <line x1="6" y1="20" x2="6" y2="14" />
+    </svg>
+    Detection Statistics
+  </h3>
+  <div id="stats-grid" class="stat-grid"></div>
+  <div id="stats-note" class="muted-small mt-md" style="padding-top:12px;border-top:1px solid var(--border-default)">
+  </div>
+</section>
+
+<script>
+  const form = document.getElementById("offline-form");
+  const submitBtn = document.getElementById("btn-analyze");
+  const statusBox = document.getElementById("status");
+  const stateEl = document.getElementById("state");
+  const bar = document.getElementById("bar");
+  const pctEl = document.getElementById("pct");
+  const msgEl = document.getElementById("msg");
+  const results = document.getElementById("results");
+  const videoEl = document.getElementById("video");
+  const csvEl = document.getElementById("csv");
+  const jsonEl = document.getElementById("json");
+  const statsBox = document.getElementById("stats");
+  const statsGrid = document.getElementById("stats-grid");
+  const statsNote = document.getElementById("stats-note");
+
+  function buildIncludeList() {
+    const inc = [];
+    if (document.getElementById("inc-vehicles").checked) {
+      inc.push("car", "motorcycle", "bus", "truck");
+    }
+    if (document.getElementById("inc-person").checked) inc.push("person");
+    if (document.getElementById("inc-bicycle").checked) inc.push("bicycle");
+    return inc.join(",");
+  }
+
+  function setDisabled(disabled) {
+    Array.from(form.elements).forEach(el => el.disabled = disabled);
+    submitBtn.disabled = disabled;
+  }
+
+  function renderStats(data) {
+    statsGrid.innerHTML = "";
+    const by = (data && data.unique_objects_by_class) || {};
+    const total = data && (data.unique_objects_total ?? null);
+    for (const [k, v] of Object.entries(by)) {
+      const badge = document.createElement("div");
+      badge.className = "stat-badge";
+      badge.innerHTML = `<span class="stat-value">${v}</span><span class="stat-label">${k}</span>`;
+      statsGrid.appendChild(badge);
+    }
+    statsNote.textContent = total != null ? `Total unique objects tracked: ${total}` : "";
+    statsBox.style.display = "block";
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    // Form validation: check file selected
+    const fileInput = document.getElementById('offline-file-input');
+    if (!fileInput.files.length) {
+      fileInput.closest('.file-drop-zone')?.classList.add('input-error');
+      setTimeout(() => fileInput.closest('.file-drop-zone')?.classList.remove('input-error'), 600);
+      showToast('Please select a video file', 'warning');
+      return;
+    }
+
+    const data = new FormData(form);
+    if (!data.get("model_path")) data.append("model_path", data.get("model") || "yolo11n.pt");
+    data.append("include", buildIncludeList());
+
+    setDisabled(true);
+    statusBox.style.display = "";
+    results.style.display = "none";
+    statsBox.style.display = "none";
+
+    const badge = document.getElementById("status-badge");
+    badge.className = "status-indicator running";
+    stateEl.textContent = "Running";
+    bar.style.width = "5%";
+    pctEl.textContent = "5%";
+    msgEl.textContent = "Uploading video...";
+
+    const res = await fetch("/offline/analyze", { method: "POST", body: data });
+    const j = await res.json().catch(() => ({ ok: false, error: "bad response" }));
+    if (!j || !j.ok) {
+      showToast((j && j.error) || "Upload failed", "error");
+      setDisabled(false);
+      return;
+    }
+
+    msgEl.textContent = "Processing frames...";
+    const jid = j.job_id;
+
+    const t = setInterval(async () => {
+      const r = await fetch(`/offline/status/${jid}`);
+      const s = await r.json().catch(() => ({ ok: false }));
+      if (!s.ok) return;
+
+      stateEl.textContent = s.state === "running" ? "Running" : s.state;
+      const pct = Math.max(5, Math.round((s.progress || 0) * 100));
+      bar.style.width = pct + "%";
+      pctEl.textContent = pct + "%";
+      if (s.error) msgEl.textContent = "⚠️ " + s.error;
+      if (s.message) msgEl.textContent = s.message;
+
+      if (s.state === "done") {
+        clearInterval(t);
+        setDisabled(false);
+        badge.className = "status-indicator done";
+        stateEl.textContent = "Complete";
+        results.style.display = "";
+        showToast("Analysis complete!", "success");
+
+        if (s.video_url) videoEl.src = s.video_url;
+        if (s.csv_url) csvEl.href = s.csv_url;
+        if (s.json_url) jsonEl.href = s.json_url;
+
+        try {
+          if (s.json_url) {
+            const jr = await fetch(s.json_url);
+            const data = await jr.json();
+            renderStats(data);
+          }
+        } catch (e) { console.warn("No JSON summary:", e); }
+      }
+      if (s.state === "error") {
+        clearInterval(t);
+        setDisabled(false);
+        badge.className = "status-indicator error";
+        stateEl.textContent = "Error";
+        showToast("Error: " + (s.error || "unknown"), "error");
+      }
+    }, 1000);
+  });
+
+  // Init drag & drop zone
+  initDropZone(document.getElementById('offline-drop-zone'), document.getElementById('offline-file-input'));
+</script>
+{% endblock %}

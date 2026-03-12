@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}TrafficIQ — Traffic Analytics Dashboard{% endblock %}</title>
+
+  <!-- Favicon (inline SVG speedometer) -->
+  <link rel="icon" type="image/svg+xml"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='30' fill='%230f172a' stroke='%233b82f6' stroke-width='3'/><path d='M32 12a20 20 0 00-17.32 30h34.64A20 20 0 0032 12z' fill='none' stroke='%233b82f6' stroke-width='2.5'/><line x1='32' y1='34' x2='44' y2='20' stroke='%23ef4444' stroke-width='2.5' stroke-linecap='round'/><circle cx='32' cy='34' r='3' fill='%23f1f5f9'/></svg>">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="TrafficIQ — Traffic Analytics Dashboard">
+  <meta property="og:description"
+    content="Video-based vehicle detection, speed estimation, and traffic analytics powered by YOLO.">
+  <meta property="og:image"
+    content="{{ url_for('static', filename='style.css', _external=True)|replace('style.css','og-preview.png') }}">
+  <meta property="og:type" content="website">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  {% block head_extra %}{% endblock %}
+</head>
+
+<body>
+  <!-- Toast container -->
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <!-- ═══ Sticky Top Navigation ═══ -->
+  <nav class="top-nav" role="navigation" aria-label="Main navigation">
+    <div class="top-nav-inner">
+      <a href="/" class="nav-brand">
+        <span class="nav-brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 6v6l4 2" />
+            <path d="M16.24 7.76l-4.24 5.66" />
+          </svg>
+        </span>
+        TrafficIQ
+      </a>
+
+      <button class="nav-hamburger" id="nav-hamburger" aria-label="Toggle navigation menu">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round">
+          <line x1="3" y1="6" x2="21" y2="6" />
+          <line x1="3" y1="12" x2="21" y2="12" />
+          <line x1="3" y1="18" x2="21" y2="18" />
+        </svg>
+      </button>
+
+      <div class="nav-links" id="nav-links">
+        <a href="/" {% if request.path=='/' %}class="active" {% endif %}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+            <polyline points="9 22 9 12 15 12 15 22" />
+          </svg>
+          Home
+        </a>
+        <a href="/offline" {% if request.path.startswith('/offline') %}class="active" {% endif %}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="23 7 16 12 23 17 23 7" />
+            <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+          </svg>
+          Video Analysis
+        </a>
+        <a href="/speed" {% if request.path.startswith('/speed') %}class="active" {% endif %}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a10 10 0 100 20 10 10 0 000-20z" />
+            <path d="M12 6v6l4 2" />
+          </svg>
+          Traffic Study
+        </a>
+        <a href="/library" {% if request.path=='/library' %}class="active" {% endif %}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+          </svg>
+          Library
+          <span class="nav-dot" id="nav-library-dot"></span>
+        </a>
+
+        <!-- Theme toggle -->
+        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light/dark theme" title="Toggle theme">
+          <svg id="theme-icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+          </svg>
+          <svg id="theme-icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+            <circle cx="12" cy="12" r="5" />
+            <line x1="12" y1="1" x2="12" y2="3" />
+            <line x1="12" y1="21" x2="12" y2="23" />
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+            <line x1="1" y1="12" x2="3" y2="12" />
+            <line x1="21" y1="12" x2="23" y2="12" />
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ═══ Main Content ═══ -->
+  <main class="container page-fade" role="main">
+    {% block breadcrumb %}{% endblock %}
+    {% block content %}
+    <!-- ═══ Dashboard Home Page ═══ -->
+    <div class="page-header page-header-center">
+      <h1 class="page-title page-title-lg">TrafficIQ</h1>
+      <p class="page-subtitle page-subtitle-center">
+        Video-based vehicle detection, calibrated speed estimation, and traffic analytics powered by YOLO.
+      </p>
+    </div>
+
+    <!-- Feature Cards Grid -->
+    <div class="dashboard-grid">
+      <a href="/offline" class="feature-card tilt" style="animation-delay:0.05s">
+        <div class="feature-card-icon feature-icon-pink">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="23 7 16 12 23 17 23 7" />
+            <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+          </svg>
+        </div>
+        <h3 class="feature-card-title">Video Analysis</h3>
+        <p class="feature-card-desc">Upload traffic videos for object detection, tracking, and vehicle counting with
+          YOLO.</p>
+        <span class="feature-card-arrow">Get started →</span>
+      </a>
+
+      <a href="/speed" class="feature-card tilt" style="animation-delay:0.1s">
+        <div class="feature-card-icon feature-icon-orange">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a10 10 0 100 20 10 10 0 000-20z" />
+            <path d="M12 6v6l4 2" />
+          </svg>
+        </div>
+        <h3 class="feature-card-title">Traffic Study</h3>
+        <p class="feature-card-desc">Measure calibrated vehicle speeds using homography-based road-plane projection.</p>
+        <span class="feature-card-arrow">Get started →</span>
+      </a>
+
+      <a href="/library" class="feature-card tilt" style="animation-delay:0.15s">
+        <div class="feature-card-icon feature-icon-blue">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+          </svg>
+        </div>
+        <h3 class="feature-card-title">Analysis Library</h3>
+        <p class="feature-card-desc">Browse, search, and manage all your saved analysis results, videos, and exports.
+        </p>
+        <span class="feature-card-arrow">Browse library →</span>
+      </a>
+    </div>
+
+    <!-- Keyboard shortcuts help button -->
+    <div class="mt-lg">
+      <button class="btn btn-ghost" id="kbd-help-btn" style="margin-top:8px" title="Keyboard shortcuts (?)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
+        Keyboard Shortcuts
+      </button>
+    </div>
+    {% endblock %}
+  </main>
+
+  <!-- ═══ Footer ═══ -->
+  <footer class="site-footer" role="contentinfo">
+    <div class="footer-left">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 6v6l4 2" />
+        <path d="M16.24 7.76l-4.24 5.66" />
+      </svg>
+      TrafficIQ
+    </div>
+    <div class="footer-right">
+      <span>YOLO</span>
+      <span class="footer-dot"></span>
+      <span>OpenCV</span>
+      <span class="footer-dot"></span>
+      <span>Flask</span>
+      <span class="footer-dot"></span>
+      <span>ByteTrack</span>
+      <span class="footer-dot"></span>
+      <span>v1.0</span>
+    </div>
+  </footer>
+
+  <!-- ═══ Back to Top Button ═══ -->
+  <button class="back-to-top" id="back-to-top" aria-label="Scroll to top" title="Back to top">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="18 15 12 9 6 15" />
+    </svg>
+  </button>
+
+  <!-- ═══ Confirmation Modal ═══ -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal" role="dialog" aria-modal="true">
+      <h3 class="modal-title" id="modal-title">Confirm</h3>
+      <p class="modal-body" id="modal-body">Are you sure?</p>
+      <div class="modal-actions">
+        <button class="btn" id="modal-cancel">Cancel</button>
+        <button class="btn danger" id="modal-confirm">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Keyboard Shortcuts Help ═══ -->
+  <div class="kbd-help-overlay" id="kbd-help-overlay">
+    <div class="kbd-help">
+      <div class="kbd-help-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
+        Keyboard Shortcuts
+        <button class="kbd-help-close" id="kbd-help-close" aria-label="Close">✕</button>
+      </div>
+      <div class="kbd-row"><span class="kbd-row-desc">Toggle theme</span><kbd>T</kbd></div>
+      <div class="kbd-row"><span class="kbd-row-desc">Show keyboard shortcuts</span><kbd>?</kbd></div>
+      <div class="kbd-row"><span class="kbd-row-desc">Go home</span><kbd>G</kbd> then <kbd>H</kbd></div>
+      <div class="kbd-row"><span class="kbd-row-desc">Scroll to top</span><kbd>↑</kbd><span
+          style="font-size:11px;color:var(--text-muted);margin-left:4px">(Home key)</span></div>
+      <div class="kbd-row"><span class="kbd-row-desc">Close overlay / modal</span><kbd>Esc</kbd></div>
+      <div class="kbd-row"><span class="kbd-row-desc">Play / Pause video</span><kbd>Space</kbd></div>
+      <div class="kbd-row"><span class="kbd-row-desc">Step frame back / forward</span><kbd>←</kbd> <kbd>→</kbd></div>
+    </div>
+  </div>
+
+  <!-- ═══ Global Scripts ═══ -->
+  <script>
+    /* ── Mobile Nav Toggle ── */
+    (function () {
+      const hamburger = document.getElementById('nav-hamburger');
+      const navLinks = document.getElementById('nav-links');
+      if (!hamburger || !navLinks) return;
+      hamburger.addEventListener('click', (e) => { e.stopPropagation(); navLinks.classList.toggle('open'); });
+      document.addEventListener('click', (e) => { if (!navLinks.contains(e.target) && e.target !== hamburger) navLinks.classList.remove('open'); });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') navLinks.classList.remove('open'); });
+    })();
+
+    /* ── Theme Toggle ── */
+    (function () {
+      const btn = document.getElementById('theme-toggle');
+      const moonIcon = document.getElementById('theme-icon-moon');
+      const sunIcon = document.getElementById('theme-icon-sun');
+      if (!btn) return;
+      function applyTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('theme', theme);
+        if (moonIcon && sunIcon) {
+          moonIcon.style.display = theme === 'dark' ? '' : 'none';
+          sunIcon.style.display = theme === 'light' ? '' : 'none';
+        }
+      }
+      const saved = localStorage.getItem('theme') || 'dark';
+      applyTheme(saved);
+      btn.addEventListener('click', () => {
+        const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+        applyTheme(cur === 'dark' ? 'light' : 'dark');
+      });
+    })();
+
+    /* ── Toast System ── */
+    function showToast(message, type = 'success', duration = 4000) {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+      const icons = { success: '✓', error: '✕', warning: '⚠' };
+      const toast = document.createElement('div');
+      toast.className = 'toast ' + type;
+      toast.innerHTML = `<span class="toast-icon">${icons[type] || 'ℹ'}</span><span class="toast-msg">${message}</span>`;
+      toast.onclick = () => removeToast(toast);
+      container.appendChild(toast);
+      // Auto-dismiss
+      setTimeout(() => removeToast(toast), duration);
+      // Max 5 toasts
+      while (container.children.length > 5) container.removeChild(container.firstChild);
+    }
+
+    function removeToast(toast) {
+      if (!toast || toast.classList.contains('removing')) return;
+      toast.classList.add('removing');
+      toast.addEventListener('animationend', () => toast.remove());
+    }
+
+    /* ── Stat Count-Up Animation ── */
+    function animateCountUp(el) {
+      const text = el.textContent.trim();
+      const match = text.match(/^([\d.]+)/);
+      if (!match) return;
+      const target = parseFloat(match[1]);
+      const suffix = text.slice(match[1].length);
+      const isFloat = match[1].includes('.');
+      const decimals = isFloat ? (match[1].split('.')[1] || '').length : 0;
+      const duration = 800;
+      const start = performance.now();
+      function step(now) {
+        const t = Math.min((now - start) / duration, 1);
+        const ease = 1 - Math.pow(1 - t, 3);
+        const val = target * ease;
+        el.textContent = (isFloat ? val.toFixed(decimals) : Math.round(val)) + suffix;
+        if (t < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('.stat-value').forEach(el => animateCountUp(el));
+    });
+
+    /* ── Feature Card Tilt Effect ── */
+    document.querySelectorAll('.feature-card.tilt').forEach(card => {
+      card.addEventListener('mousemove', e => {
+        const rect = card.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width - 0.5;
+        const y = (e.clientY - rect.top) / rect.height - 0.5;
+        card.style.transform = `translateY(-4px) perspective(800px) rotateX(${-y * 6}deg) rotateY(${x * 6}deg)`;
+      });
+      card.addEventListener('mouseleave', () => {
+        card.style.transform = '';
+      });
+    });
+
+    /* ── Table scroll overflow detection ── */
+    document.querySelectorAll('.table-scroll-wrapper').forEach(wrap => {
+      function check() {
+        wrap.classList.toggle('has-overflow', wrap.scrollWidth > wrap.clientWidth);
+      }
+      check();
+      new ResizeObserver(check).observe(wrap);
+    });
+
+    /* ── Confirmation Modal (showConfirm returns Promise) ── */
+    window.showConfirm = function (title, message) {
+      return new Promise((resolve) => {
+        const overlay = document.getElementById('modal-overlay');
+        const titleEl = document.getElementById('modal-title');
+        const bodyEl = document.getElementById('modal-body');
+        const cancelBtn = document.getElementById('modal-cancel');
+        const confirmBtn = document.getElementById('modal-confirm');
+        titleEl.textContent = title || 'Confirm';
+        bodyEl.textContent = message || 'Are you sure?';
+        overlay.classList.add('open');
+        function cleanup(result) {
+          overlay.classList.remove('open');
+          cancelBtn.removeEventListener('click', onCancel);
+          confirmBtn.removeEventListener('click', onConfirm);
+          resolve(result);
+        }
+        function onCancel() { cleanup(false); }
+        function onConfirm() { cleanup(true); }
+        cancelBtn.addEventListener('click', onCancel);
+        confirmBtn.addEventListener('click', onConfirm);
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(false); }, { once: true });
+      });
+    };
+
+    /* ── Back to Top Button ── */
+    (function () {
+      const btn = document.getElementById('back-to-top');
+      if (!btn) return;
+      window.addEventListener('scroll', () => {
+        btn.classList.toggle('visible', window.scrollY > 400);
+      }, { passive: true });
+      btn.addEventListener('click', () => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    })();
+
+    /* ── Keyboard Shortcuts Help ── */
+    (function () {
+      const overlay = document.getElementById('kbd-help-overlay');
+      const closeBtn = document.getElementById('kbd-help-close');
+      const openBtn = document.getElementById('kbd-help-btn');
+      if (!overlay) return;
+      function openHelp() { overlay.classList.add('open'); }
+      function closeHelp() { overlay.classList.remove('open'); }
+      if (closeBtn) closeBtn.addEventListener('click', closeHelp);
+      if (openBtn) openBtn.addEventListener('click', openHelp);
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) closeHelp(); });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+        if (e.key === '?' || e.key === '/') { e.preventDefault(); overlay.classList.contains('open') ? closeHelp() : openHelp(); }
+        if (e.key === 'Escape') {
+          closeHelp();
+          document.getElementById('modal-overlay')?.classList.remove('open');
+        }
+        if (e.key === 't' || e.key === 'T') {
+          if (!e.ctrlKey && !e.metaKey) document.getElementById('theme-toggle')?.click();
+        }
+      });
+    })();
+
+    /* ── Nav Notification Dot (Library) ── */
+    (function () {
+      const dot = document.getElementById('nav-library-dot');
+      if (!dot) return;
+      const lastCount = parseInt(sessionStorage.getItem('library-count') || '0', 10);
+      fetch('/api/library').then(r => r.json()).then(data => {
+        const count = (data.items || []).length;
+        if (count > lastCount && lastCount > 0) {
+          dot.classList.add('active');
+        }
+        sessionStorage.setItem('library-count', String(count));
+      }).catch(() => { });
+      // Clear dot when visiting library
+      if (window.location.pathname === '/library') {
+        dot.classList.remove('active');
+      }
+    })();
+
+    /* ── Copy to Clipboard Helper ── */
+    window.copyToClipboard = function (text, btn) {
+      navigator.clipboard.writeText(text).then(() => {
+        if (btn) { btn.classList.add('copied'); btn.textContent = '✓ Copied!'; setTimeout(() => { btn.classList.remove('copied'); btn.textContent = '📋 Copy'; }, 1500); }
+        showToast('Copied to clipboard!', 'success', 2000);
+      }).catch(() => showToast('Failed to copy', 'error'));
+    };
+
+    /* ── Log Colorizer ── */
+    window.colorizeLog = function (text) {
+      return text.replace(/^(.*?(ERROR|FATAL|CRITICAL).*)$/gm, '<span class="log-error">$1</span>')
+        .replace(/^(.*?(WARN|WARNING).*)$/gm, '<span class="log-warn">$1</span>')
+        .replace(/^(.*?INFO.*)$/gm, '<span class="log-info">$1</span>')
+        .replace(/^(.*?(OK|SUCCESS|DONE|COMPLETE).*)$/gm, '<span class="log-success">$1</span>');
+    };
+
+    /* ── File Drop Zone Initializer ── */
+    window.initDropZone = function (zoneEl, fileInput) {
+      if (!zoneEl || !fileInput) return;
+      const nameEl = zoneEl.querySelector('.file-drop-zone-name');
+      ['dragenter', 'dragover'].forEach(ev => {
+        zoneEl.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); zoneEl.classList.add('dragover'); });
+      });
+      ['dragleave', 'drop'].forEach(ev => {
+        zoneEl.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); zoneEl.classList.remove('dragover'); });
+      });
+      zoneEl.addEventListener('drop', (e) => {
+        const files = e.dataTransfer.files;
+        if (files.length) { fileInput.files = files; fileInput.dispatchEvent(new Event('change', { bubbles: true })); }
+      });
+      fileInput.addEventListener('change', () => {
+        if (nameEl && fileInput.files[0]) {
+          nameEl.textContent = fileInput.files[0].name;
+          nameEl.style.display = 'block';
+        }
+      });
+    };
+  </script>
+
+  {% block scripts_extra %}{% endblock %}
+</body>
+
+</html>
