@@ -112,3 +112,4 @@ htmlcov/
 src/image_pipeline/
 runs/
 venv/
+src/moe_yolo_pipeline/moe_yolo_pipeline/jobs/
